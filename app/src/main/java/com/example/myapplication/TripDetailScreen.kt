@@ -11,10 +11,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,9 +69,25 @@ fun CreateTab(navController: NavController) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(imageVector = Icons.Default.Flight, "Создать", modifier = Modifier.size(60.dp),tint = Color(0xFF333333),)
-                    Text("Создать поездку", fontWeight = FontWeight.Bold,color = Color(0xFF333333))
+                )
+
+                {
+                    Icon(imageVector = Icons.Default.Flight, "Создать",
+                        modifier = Modifier.size(60.dp),
+                        tint = Color(0xFF333333),)
+                    Button(
+                        onClick = { navController.navigate("create_trip") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFDD2D),
+                            contentColor = Color(0xFF333333)
+                        )
+                    ) {
+                        Text("Создать поездку", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    }
+
+
                 }
             }
         }

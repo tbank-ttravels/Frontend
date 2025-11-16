@@ -22,11 +22,12 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 
 @Composable
-fun SplashScreen(navController: NavController) {
+fun Welcome(navController: NavController) {
     LaunchedEffect(Unit) {
         delay(2000)
-        navController.navigate("auth") {
-            popUpTo("splash") { inclusive = true }
+
+        navController.navigate("main") {
+            popUpTo("welcome") { inclusive = true }
         }
     }
 
@@ -45,7 +46,7 @@ fun SplashScreen(navController: NavController) {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "T-Путешествия",
+                text = "Добро пожаловать!",
                 color = Color(0xFF333333),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold
@@ -54,3 +55,7 @@ fun SplashScreen(navController: NavController) {
         }
     }
 }
+
+
+
+

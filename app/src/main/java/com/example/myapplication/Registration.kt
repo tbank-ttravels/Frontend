@@ -33,10 +33,11 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun AuthScreen(navController: NavController) {
+fun Registration(navController: NavController) {
 
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -53,7 +54,7 @@ fun AuthScreen(navController: NavController) {
     ) {
 
         Text(
-            text = "Добро пожаловать!",
+            text = "Регистрация",
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
             color = Color(0xFF333333),
@@ -70,13 +71,13 @@ fun AuthScreen(navController: NavController) {
                 .align(Alignment.BottomCenter)
                 .padding( 30.dp)
                 .border(
-                width = 2.dp,
-                color = Color.Gray,
-                shape = RoundedCornerShape(
-            topStart = 32.dp,
-            topEnd = 32.dp
-        )
-        ),
+                    width = 2.dp,
+                    color = Color.Gray,
+                    shape = RoundedCornerShape(
+                        topStart = 32.dp,
+                        topEnd = 32.dp
+                    )
+                ),
             shape = RoundedCornerShape(
                 topStart = 32.dp,
                 topEnd = 32.dp
@@ -89,11 +90,14 @@ fun AuthScreen(navController: NavController) {
                     .padding(32.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "Войти",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333)
+
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Имя", fontWeight = FontWeight.Medium) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 OutlinedTextField(
@@ -103,7 +107,6 @@ fun AuthScreen(navController: NavController) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
@@ -124,34 +127,14 @@ fun AuthScreen(navController: NavController) {
                         contentColor = Color(0xFF333333)
                     )
                 ) {
-                    Text("Войти", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text("Создать аккаунт", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 }
 
 
 
 
 
-                Button(
-                    onClick = { navController.navigate("registration") },
-                    modifier = Modifier.fillMaxWidth(),
 
-                    shape = RoundedCornerShape(12.dp),
-
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFFFFF),
-                        contentColor = Color(0xFF333333)
-                    )
-                )
-                {
-                    Text(
-                        "Нет аккаунта? Зарегистрироваться",
-                        color = Color(0xFF333333)
-                    )
-
-
-
-
-                }
             }
         }
     }
