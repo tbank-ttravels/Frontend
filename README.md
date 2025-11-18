@@ -43,5 +43,5 @@ Tests:
 - JUnit Ext: 1.3.0
 - Espresso Core: 3.7.0
 
-# Running
+# Launching on the device
 Recommend version: Android 13 (API 33)
