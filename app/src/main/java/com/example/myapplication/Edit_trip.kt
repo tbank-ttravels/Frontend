@@ -36,16 +36,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 
 
-import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 
 @Composable
-fun Create_trip(
+fun Edit_trip(
     navController: NavController,
-    tripViewModel: TripViewModel = viewModel()
-)  {
+    tripViewModel: TripViewModel,
+    tripId: String?
+) {
     var start_town by remember { mutableStateOf("") }
     var end_town by remember { mutableStateOf("") }
     var start_date by remember { mutableStateOf("") }
@@ -184,33 +184,6 @@ fun Create_trip(
                 ) {
                     Text("Создать", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                 }
-
-
-
-                Button(
-                    onClick = { navController.navigate("main") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = -90.dp)
-                        .border(
-                            width = 4.dp,
-                            color = Color(0xFFFFDD2D),
-                            shape = RoundedCornerShape(16.dp)
-                        ),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFFFFF),
-                        contentColor = Color(0xFF333333)
-                    )
-                ) {
-                    Text(
-                        "Список поездок",
-                        fontWeight = FontWeight.ExtraBold, fontSize = 16.sp
-                    )
-                }
-
-
-
             }
 
         }

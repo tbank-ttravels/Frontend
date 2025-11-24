@@ -17,6 +17,8 @@ navigationRuntimeKtx = "2.9.6"
 foundation = "1.9.4"
 uiGraphics = "1.9.4"
 foundationLayout = "1.9.4"
+runtime = "1.9.5"
+foundationLayoutVersion = "1.9.5"
 
 [libraries]
 androidx-activity-compose-v180 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
@@ -44,6 +46,8 @@ androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navig
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundation" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics", version.ref = "uiGraphics" }
 androidx-compose-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayout" }
+androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "runtime" }
+androidx-foundation-layout = { group = "androidx.compose.foundation", name = "foundation-layout", version.ref = "foundationLayoutVersion" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

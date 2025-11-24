@@ -51,4 +51,6 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.compose.foundation.layout)
+    implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.foundation.layout)
 }

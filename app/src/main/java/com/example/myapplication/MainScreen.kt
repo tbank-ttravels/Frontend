@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 
 @Composable
-fun MainScreen(navController: NavController) {
+fun MainScreen(navController: NavController, tripViewModel: TripViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Поездки","Дом","one","two")
 
@@ -46,7 +46,7 @@ fun MainScreen(navController: NavController) {
         }) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             when(selectedTab) {
-                0 -> CreateTab(navController)
+                0 -> CreateTab(navController,tripViewModel)
                 1 -> HomeTab()
                 2 -> Tab1()
                 3 -> Tab2()
