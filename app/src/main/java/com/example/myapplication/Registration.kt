@@ -35,8 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
-
-// Состояния для регистрации
 sealed class RegistrationState {
     object Idle : RegistrationState()
     object Loading : RegistrationState()
@@ -251,4 +249,5 @@ fun Registration(navController: NavController) {
             registrationState = mockRegistration(name, phone, password)
         }
     }
+
 }
