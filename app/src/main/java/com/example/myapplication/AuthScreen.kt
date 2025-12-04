@@ -1,30 +1,11 @@
 package com.example.myapplication
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -33,50 +14,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import kotlinx.coroutines.delay
-
-
-sealed class AuthState {
-    object Idle : AuthState()
-    object Loading : AuthState()
-    data class Success(val message: String) : AuthState()
-    data class Error(val message: String) : AuthState()
-}
 
 @Composable
-fun AuthScreen(navController: NavController) {
+fun AuthScreen(
+    navController: NavController,
+    viewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory())
+) {
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var authState by remember { mutableStateOf<AuthState>(AuthState.Idle) }
-    suspend fun mockAuth(phone: String, password: String): AuthState {
-        delay(1500)
-        if (phone.length < 10) {
-            return AuthState.Error("Номер телефона должен содержать не менее 10 цифр")
-        }
-
-        if (password.length < 8) {
-            return AuthState.Error("Пароль должен содержать не менее 8 символов")
-        }
-
-
-        val mockUsers = listOf(
-            "79273630708" to "Qwerty80",
-            "79273456789" to "Ghjk8989",
-            "79995554433" to "Cvbn7899"
-        )
-        val isValidUser = mockUsers.any { it.first == phone && it.second == password }
-
-        return if (isValidUser) {
-            AuthState.Success("Авторизация успешна!")
-        } else {
-            AuthState.Error("Неверный номер телефона или пароль")
-        }
-    }
+    val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
-        if (authState is AuthState.Success) {
-            delay(500)
+        if (authState is AuthViewModel.AuthState.Success) {
             navController.navigate("welcome") {
                 popUpTo("auth") { inclusive = true }
             }
@@ -96,7 +47,6 @@ fun AuthScreen(navController: NavController) {
                 )
             )
     ) {
-
         Text(
             text = "Добро пожаловать!",
             fontSize = 28.sp,
@@ -113,18 +63,8 @@ fun AuthScreen(navController: NavController) {
                 .heightIn(max = 700.dp)
                 .align(Alignment.BottomCenter)
                 .padding(30.dp)
-                .border(
-                    width = 2.dp,
-                    color = Color.Gray,
-                    shape = RoundedCornerShape(
-                        topStart = 32.dp,
-                        topEnd = 32.dp
-                    )
-                ),
-            shape = RoundedCornerShape(
-                topStart = 32.dp,
-                topEnd = 32.dp
-            ),
+                .border(2.dp, Color.Gray, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(
@@ -133,119 +73,66 @@ fun AuthScreen(navController: NavController) {
                     .padding(32.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "Войти",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF333333)
-                )
+                Text("Войти", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
 
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = {
-                        phone = it
-                        if (authState is AuthState.Error) {
-                            authState = AuthState.Idle
-                        }
-                    },
-                    label = { Text("Номер телефона", fontWeight = FontWeight.ExtraBold) },
+                    onValueChange = { phone = it },
+                    label = { Text("Номер телефона") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = authState is AuthState.Error
+                    isError = authState is AuthViewModel.AuthState.Error
                 )
-
 
                 OutlinedTextField(
                     value = password,
-                    onValueChange = {
-                        password = it
-
-                        if (authState is AuthState.Error) {
-                            authState = AuthState.Idle
-                        }
-                    },
-                    label = { Text("Пароль", fontWeight = FontWeight.ExtraBold) },
+                    onValueChange = { password = it },
+                    label = { Text("Пароль") },
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = authState is AuthState.Error
-
+                    isError = authState is AuthViewModel.AuthState.Error
                 )
 
-
                 when (authState) {
-                    is AuthState.Error -> {
+                    is AuthViewModel.AuthState.Error -> {
                         Text(
-                            text = (authState as AuthState.Error).message,
+                            text = (authState as AuthViewModel.AuthState.Error).message,
                             color = Color.Red,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            fontSize = 14.sp
                         )
                     }
-                    is AuthState.Success -> {
+                    is AuthViewModel.AuthState.Success -> {
                         Text(
-                            text = (authState as AuthState.Success).message,
+                            text = "Успешный вход",
                             color = Color(0xFF4CAF50),
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            fontSize = 14.sp
                         )
                     }
-                    else -> {
-                        Spacer(modifier = Modifier.height(20.dp))
-                    }
+                    else -> Spacer(modifier = Modifier.height(20.dp))
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
 
                 Button(
-                    onClick = {
-
-                        authState = AuthState.Loading
-                    },
+                    onClick = { viewModel.login(phone, password) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFDD2D),
-                        contentColor = Color(0xFF333333)
-                    ),
-                    enabled = authState != AuthState.Loading
+                    enabled = authState !is AuthViewModel.AuthState.Loading
                 ) {
-                    if (authState == AuthState.Loading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color(0xFF333333),
-                            strokeWidth = 2.dp
-                        )
+                    if (authState is AuthViewModel.AuthState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Text("Войти", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                        Text("Войти")
                     }
                 }
-
 
                 Button(
                     onClick = { navController.navigate("registration") },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFFFFF),
-                        contentColor = Color(0xFF333333)
-                    ),
-                    enabled = authState != AuthState.Loading
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        "Нет аккаунта? Зарегистрироваться",
-                        color = Color(0xFF333333)
-                    )
+                    Text("Нет аккаунта? Зарегистрироваться")
                 }
             }
-        }
-    }
-
-
-    LaunchedEffect(authState) {
-        if (authState == AuthState.Loading) {
-            authState = mockAuth(phone, password)
         }
     }
 }
