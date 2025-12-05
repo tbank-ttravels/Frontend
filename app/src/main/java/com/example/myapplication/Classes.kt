@@ -22,5 +22,6 @@ data class Expense(
     val title: String,
     val amount: Double,
     val category: String,
-    val paidBy: String
+    val paidBy: String,
+    val payerId: String
 )
