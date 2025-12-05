@@ -1,34 +1,33 @@
 package com.example.myapplication
 
 import android.content.Context
-import com.example.core_data.network.NetworkDefaults
 import com.example.core_data.network.PersistentTokensStore
+import com.example.core_data.network.defaultJson
 import com.example.core_data.repository.TTravelsBackend
-import com.example.myapplication.BuildConfig
 
 object BackendProvider {
+
+    private const val BASE_URL =
+        "https://ttravels.enzolu.ru/api/v1/\n"
+
     @Volatile
     private var backend: TTravelsBackend? = null
 
-    /**
-     * @param context контекст приложения
-     * @param baseUrl базовый URL
-     */
-    fun get(context: Context, baseUrl: String = BuildConfig.BASE_URL): TTravelsBackend {
+    fun get(context: Context): TTravelsBackend {
         val appContext = context.applicationContext
-        val finalUrl = baseUrl.ifBlank { NetworkDefaults.DEFAULT_BASE_URL }
+
         return backend ?: synchronized(this) {
             backend ?: TTravelsBackend.create(
-                baseUrl = finalUrl,
+                baseUrl = BASE_URL,
                 tokensStore = PersistentTokensStore.create(appContext),
-                json = com.example.core_data.network.defaultJson(),
+                json = defaultJson(),
                 configureClient = null
             ).also { backend = it }
         }
     }
 
-
     fun get(): TTravelsBackend {
-        return backend ?: throw IllegalStateException("Запущено")
+        return backend
+            ?: throw IllegalStateException("Запущено")
     }
 }
