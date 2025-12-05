@@ -8,7 +8,7 @@ import com.example.core_data.repository.TTravelsBackend
 object BackendProvider {
 
     private const val BASE_URL =
-        "https://ttravels.enzolu.ru/api/v1/\n"
+        "https://ttravels.enzolu.ru/api/v1/"
 
     @Volatile
     private var backend: TTravelsBackend? = null
