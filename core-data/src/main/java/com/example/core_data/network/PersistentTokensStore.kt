@@ -10,18 +10,21 @@ class PersistentTokensStore private constructor(
 
     companion object {
         const val DEFAULT_PREFS_NAME = "core_data_tokens"
-        fun create(context: Context?, prefsName: String = DEFAULT_PREFS_NAME): PersistentTokensStore =
+
+        fun create(
+            context: Context,
+            prefsName: String = DEFAULT_PREFS_NAME
+        ): PersistentTokensStore =
             PersistentTokensStore(context.applicationContext, prefsName)
     }
 
     private val prefs: SharedPreferences =
-        context.applicationContext.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
 
     @Volatile
     private var cached: AuthTokens? = readFromPrefs()
 
     override fun currentTokens(): AuthTokens? = cached
-
     override fun getAccessToken(): String? = cached?.accessToken
 
     @Synchronized
@@ -53,6 +56,7 @@ class PersistentTokensStore private constructor(
         val refresh = prefs.getString(Keys.REFRESH, null) ?: return null
         val accessExp = prefs.getLong(Keys.ACCESS_EXP, -1L).takeIf { it >= 0 }
         val refreshExp = prefs.getLong(Keys.REFRESH_EXP, -1L).takeIf { it >= 0 }
+
         return AuthTokens(
             accessToken = access,
             refreshToken = refresh,
@@ -71,7 +75,6 @@ class PersistentTokensStore private constructor(
     private fun SharedPreferences.Editor.applyLongOrRemove(
         key: String,
         value: Long?
-    ): SharedPreferences.Editor {
-        return if (value != null) putLong(key, value) else remove(key)
-    }
+    ): SharedPreferences.Editor =
+        if (value != null) putLong(key, value) else remove(key)
 }

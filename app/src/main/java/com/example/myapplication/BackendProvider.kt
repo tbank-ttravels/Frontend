@@ -27,7 +27,6 @@ object BackendProvider {
     }
 
     fun get(): TTravelsBackend {
-        return backend
-            ?: throw IllegalStateException("Запущено")
+        return backend ?: throw IllegalStateException("BackendProvider не инициализирован")
     }
 }

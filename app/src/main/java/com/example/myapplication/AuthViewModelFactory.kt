@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.core_data.repository.TTravelsBackend
 
 class AuthViewModelFactory(
-    private val backend: TTravelsBackend = BackendProvider.get()
+    private val backend: TTravelsBackend
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {

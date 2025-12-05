@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -18,12 +19,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 
 @Composable
-fun AuthScreen(
-    navController: NavController,
-    viewModel: AuthViewModel = viewModel(factory = AuthViewModelFactory())
-) {
+fun AuthScreen(navController: NavController) {
+
+    val context = LocalContext.current
+
+    val factory = remember {
+        AuthViewModelFactory(BackendProvider.get(context))
+    }
+
+    val viewModel: AuthViewModel = viewModel(factory = factory)
+
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+
     val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
@@ -63,7 +71,11 @@ fun AuthScreen(
                 .heightIn(max = 700.dp)
                 .align(Alignment.BottomCenter)
                 .padding(30.dp)
-                .border(2.dp, Color.Gray, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)),
+                .border(
+                    2.dp,
+                    Color.Gray,
+                    RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+                ),
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
@@ -102,6 +114,7 @@ fun AuthScreen(
                             fontSize = 14.sp
                         )
                     }
+
                     is AuthViewModel.AuthState.Success -> {
                         Text(
                             text = "Успешный вход",
@@ -109,6 +122,7 @@ fun AuthScreen(
                             fontSize = 14.sp
                         )
                     }
+
                     else -> Spacer(modifier = Modifier.height(20.dp))
                 }
 
@@ -119,7 +133,10 @@ fun AuthScreen(
                     enabled = authState !is AuthViewModel.AuthState.Loading
                 ) {
                     if (authState is AuthViewModel.AuthState.Loading) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
                     } else {
                         Text("Войти")
                     }
