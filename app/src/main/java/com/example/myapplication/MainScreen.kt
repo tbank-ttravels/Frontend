@@ -1,73 +1,62 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Flight
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.QuestionMark
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun MainScreen(navController: NavController, tripViewModel: TripViewModel) {
+fun MainScreen(
+    navController: NavController,
+    tripViewModel: TripViewModel,
+    userViewModel: UserViewModel
+) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Поездки","Дом","one","two")
 
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                tabs.forEachIndexed { index, title ->
-                    NavigationBarItem(
-                        icon = {
-                            when(index) {
-                                0 -> Icon(Icons.Default.Flight, "Поездки")
-                                1 -> Icon(Icons.Default.Home, "Дом")
-                                2 -> Icon(Icons.Default.QuestionMark,"one")
-                                3 -> Icon(Icons.Default.QuestionMark,"two")
-                            }
-                        },
-                        label = { Text(title) },
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index }
-                    )
-                }
-            }
-        }) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            when(selectedTab) {
-                0 -> CreateTab(navController,tripViewModel)
-                1 -> HomeTab()
-                2 -> Tab1()
-                3 -> Tab2()
-            }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        CreateTab(navController, tripViewModel)
+        Button(
+            onClick = {
+                navController.navigate("profile")
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 8.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFFFDD2D),
+                contentColor = Color(0xFF333333)
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 4.dp
+            )
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Person,
+                contentDescription = "Профиль",
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Text("Профиль", fontSize = 14.sp)
         }
     }
-}
-
-
-
-@Composable
-fun HomeTab() {
-    Text("Экран 1 ")
-}
-
-@Composable
-fun Tab1(){
-    Text("Экран 2")
-}
-
-@Composable
-fun Tab2() {
-    Text("Экран 3")
 }

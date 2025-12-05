@@ -26,7 +26,7 @@ fun Welcome(navController: NavController) {
     LaunchedEffect(Unit) {
         delay(2000)
 
-        navController.navigate("main") {
+        navController.navigate("profile") {
             popUpTo("welcome") { inclusive = true }
         }
     }

@@ -27,4 +27,14 @@ class TripViewModel : ViewModel() {
     fun getTripById(tripId: String): Trip? {
         return _trips.value.find { it.id == tripId }
     }
-}
+
+
+    fun deleteTrip(tripId: String) {
+        _trips.value = _trips.value.filter { it.id != tripId }
+    }
+
+    fun updateTrip(updatedTrip: Trip) {
+        _trips.value = _trips.value.map { trip ->
+            if (trip.id == updatedTrip.id) updatedTrip else trip
+        }
+}}
