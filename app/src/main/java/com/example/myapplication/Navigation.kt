@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import FinanceTab
 import TripDetailScreen
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +62,35 @@ fun TravelApp() {
                 tripViewModel = tripViewModel
             )
         }
-
+        composable("add_finance/{tripId}") { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId")
+            val trip = tripViewModel.getTripById(tripId ?: "")
+            if (trip != null) {
+                Add_Finance(trip = trip, tripViewModel = tripViewModel,navController)
+            } else {
+                Text("Поездка не найдена")
+            }
+        }
+        composable("add_finance/{tripId}") { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId")
+            val trip = tripViewModel.getTripById(tripId ?: "")
+            if (trip != null) {
+                Add_Finance(
+                    trip = trip,
+                    tripViewModel = tripViewModel,
+                    navController = navController
+                )
+            } else {
+                Text("Поездка не найдена")
+            }
+        }
+        composable("edit_profile") {
+            EditProfileScreen(navController = navController, userViewModel = userViewModel)
+        }
+        composable("add_participant/{tripId}") { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId")
+            AddParticipantScreen(tripId = tripId, navController = navController, tripViewModel = tripViewModel)
+        }
 
         composable("trip_detail/{tripId}") { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId")

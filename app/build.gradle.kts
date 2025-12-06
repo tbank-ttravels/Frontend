@@ -58,4 +58,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.foundation.layout)
+    implementation(libs.foundation.layout)
+    implementation(libs.ui)
+
 }
