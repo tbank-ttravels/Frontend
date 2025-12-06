@@ -25,10 +25,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.core_data.network.NetworkResult
 
 @Composable
 fun Profile(
@@ -46,6 +52,28 @@ fun Profile(
     userViewModel: UserViewModel
 ) {
     val userData by userViewModel.userData.collectAsState()
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        when (val res = BackendProvider.get(navController.context).getCurrentUser()) {
+            is NetworkResult.Success -> {
+                val acc = res.data
+                val combinedName = listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "" }
+                userViewModel.updateUser(
+                    name = combinedName,
+                    phone = acc.phone.orEmpty()
+                )
+                errorMessage = null
+            }
+            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+            else -> errorMessage = "Не удалось загрузить профиль"
+        }
+        isLoading = false
+    }
 
     Box(
         modifier = Modifier
@@ -101,6 +129,16 @@ fun Profile(
                         color = Color(0xFF333333),
                         modifier = Modifier.weight(1f)
                     )
+                }
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage ?: "",
+                        color = Color.Red,
+                        fontSize = 14.sp
+                    )
+                }
+                if (isLoading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -30,11 +30,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.core_data.model.AuthRegisterRequest
+import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.delay
 
 sealed class RegistrationState {
@@ -50,44 +53,37 @@ fun Registration(
     userViewModel: UserViewModel
 ) {
     var name by remember { mutableStateOf("") }
+    var surname by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var registrationState by remember { mutableStateOf<RegistrationState>(RegistrationState.Idle) }
-    val existingUsers = remember {
-        listOf(
-            "79991234567",
-            "79998887766",
-            "79995554433"
-        )
-    }
-    suspend fun mockRegistration(name: String, phone: String, password: String): RegistrationState {
-        delay(2000)
+    val context = LocalContext.current
 
-        if (name.length < 2) {
-            return RegistrationState.Error("Имя должно содержать не менее 2 символов")
-        }
-
-        if (phone.length < 10) {
-            return RegistrationState.Error("Номер телефона должен содержать не менее 10 цифр")
-        }
-
-        if (password.length < 8) {
-            return RegistrationState.Error("Пароль должен содержать не менее 8 символов")
-        }
-
-        if (existingUsers.contains(phone)) {
-            return RegistrationState.Error("Пользователь с таким номером уже существует")
-        }
-
-        return RegistrationState.Success("Аккаунт успешно создан! Добро пожаловать, $name!")
-    }
     LaunchedEffect(registrationState) {
-        if (registrationState is RegistrationState.Success) {
-            userViewModel.updateUser(name, phone)
-            delay(1000)
-            navController.navigate("profile") {
-                popUpTo("registration") { inclusive = true }
+        when(registrationState){
+            is RegistrationState.Success -> {
+                userViewModel.updateUser(name, phone)
+                delay(1000)
+                navController.navigate("profile") {
+                    popUpTo("registration") { inclusive = true }
+                }
             }
+            is RegistrationState.Loading -> {
+                val request = AuthRegisterRequest(
+                    phone = phone.trim(),
+                    name = name.trim(),
+                    surname = surname.trim(),
+                    password = password
+                )
+                registrationState = when (val res = BackendProvider.get(context).register(request)) {
+                    is NetworkResult.Success -> RegistrationState.Success("Аккаунт успешно создан! Добро пожаловать, ${request.name}!")
+                    is NetworkResult.HttpError -> RegistrationState.Error(res.error?.message ?: "Ошибка ${res.code}")
+                    is NetworkResult.NetworkError -> RegistrationState.Error("Проблемы с сетью")
+                    is NetworkResult.SerializationError -> RegistrationState.Error("Ошибка обработки ответа")
+                    else -> RegistrationState.Error("Не удалось зарегистрироваться")
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -149,6 +145,20 @@ fun Registration(
                         }
                     },
                     label = { Text("Имя", fontWeight = FontWeight.ExtraBold) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    isError = registrationState is RegistrationState.Error
+                )
+
+                OutlinedTextField(
+                    value = surname,
+                    onValueChange = { newSurname ->
+                        surname = newSurname
+                        if (registrationState is RegistrationState.Error) {
+                            registrationState = RegistrationState.Idle
+                        }
+                    },
+                    label = { Text("Фамилия", fontWeight = FontWeight.ExtraBold) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     isError = registrationState is RegistrationState.Error
@@ -218,7 +228,8 @@ fun Registration(
                         contentColor = Color(0xFF333333)
                     ),
                     enabled = registrationState != RegistrationState.Loading &&
-                            name.isNotEmpty() && phone.isNotEmpty() && password.isNotEmpty()
+                            name.isNotEmpty() && surname.isNotEmpty() &&
+                            phone.isNotEmpty() && password.isNotEmpty()
                 ) {
                     if (registrationState == RegistrationState.Loading) {
                         CircularProgressIndicator(
@@ -249,13 +260,6 @@ fun Registration(
                     )
                 }
             }
-        }
-    }
-
-
-    LaunchedEffect(registrationState) {
-        if (registrationState == RegistrationState.Loading) {
-            registrationState = mockRegistration(name, phone, password)
         }
     }
 }

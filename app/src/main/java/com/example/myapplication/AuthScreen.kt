@@ -30,12 +30,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import com.example.core_data.model.AuthLoginRequest
+import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.delay
 
 
@@ -55,42 +58,42 @@ fun AuthScreen(
     var password by remember { mutableStateOf("") }
     var authState by remember { mutableStateOf<AuthState>(AuthState.Idle) }
     val userState by userViewModel.userData.collectAsState()
+    val context = LocalContext.current
 
-    suspend fun mockAuth(phone: String, password: String): AuthState {
-        delay(1500)
-
-        if (phone.length < 10) {
-            return AuthState.Error("Номер телефона должен содержать не менее 10 цифр")
-        }
-
-        if (password.length < 8) {
-            return AuthState.Error("Пароль должен содержать не менее 8 символов")
-        }
-
-        val mockUsers = listOf(
-            "79273630708" to "Qwerty80",
-            "79273456789" to "Ghjk8989",
-            "79995554433" to "Cvbn7899"
-        )
-
-        val isValidUser = mockUsers.any { it.first == phone && it.second == password }
-
-        return if (isValidUser) {
-            AuthState.Success("Авторизация успешна!")
-        } else {
-            AuthState.Error("Неверный номер телефона или пароль")
-        }
-    }
     LaunchedEffect(authState) {
-        if (authState is AuthState.Success) {
-            userViewModel.updateUser(
-                name = "Пользователь",
-                phone = phone
-            )
-            delay(500)
-            navController.navigate("profile") {
-                popUpTo("auth") { inclusive = true }
+        when (authState) {
+            AuthState.Loading -> {
+                val request = AuthLoginRequest(
+                    phone = phone.trim(),
+                    password = password
+                )
+                authState = when (val res = BackendProvider.get(context).login(request)) {
+                    is NetworkResult.Success -> AuthState.Success("Авторизация успешна!")
+                    is NetworkResult.HttpError -> AuthState.Error(res.error?.message ?: "Ошибка ${res.code}")
+                    is NetworkResult.NetworkError -> AuthState.Error("Проблемы с сетью")
+                    is NetworkResult.SerializationError -> AuthState.Error("Ошибка обработки ответа")
+                    else -> AuthState.Error("Не удалось авторизоваться")
+                }
             }
+            is AuthState.Success -> {
+                val backend = BackendProvider.get(context)
+                val profileResult = backend.getCurrentUser()
+                val profileName = if (profileResult is NetworkResult.Success) {
+                    val acc = profileResult.data
+                    listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "Пользователь" }
+                } else {
+                    "Пользователь"
+                }
+                userViewModel.updateUser(
+                    name = profileName,
+                    phone = phone.trim()
+                )
+                delay(500)
+                navController.navigate("profile") {
+                    popUpTo("auth") { inclusive = true }
+                }
+            }
+            else -> Unit
         }
     }
 
@@ -221,7 +224,8 @@ fun AuthScreen(
                         containerColor = Color(0xFFFFDD2D),
                         contentColor = Color(0xFF333333)
                     ),
-                    enabled = authState != AuthState.Loading
+                    enabled = authState != AuthState.Loading &&
+                            phone.isNotEmpty() && password.isNotEmpty()
                 ) {
                     if (authState == AuthState.Loading) {
                         CircularProgressIndicator(
@@ -251,13 +255,6 @@ fun AuthScreen(
                     )
                 }
             }
-        }
-    }
-
-
-    LaunchedEffect(authState) {
-        if (authState == AuthState.Loading) {
-            authState = mockAuth(phone, password)
         }
     }
 }
