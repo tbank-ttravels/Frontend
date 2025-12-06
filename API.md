@@ -60,6 +60,7 @@ normalizeDateToOffsetString("31.12.2025") // вернет ISO OffsetDateTime в 
 - **Путешествия** (`TravelModels.kt`): `getMyTravels`, `createTravel`, `getTravel`, `editTravel`, `deleteTravel`, `closeTravel`, `reopenTravel`.
 - **Участники** (`TravelMembersModels.kt`): `getTravelMembers`, `inviteMembers`, `leaveTravel`, `kickMember`.
 - **Категории и траты** (`CategoryModels.kt`, `ExpenseModels.kt`): `getCategories`, `createCategory`, `editCategory`, `getTravelExpenses`, `createExpense`, `updateExpense`, `deleteExpense`, `addParticipantsToExpense`, `removeParticipantsFromExpense`.
+- **Долги** (`DebtModels.kt`): `getTravelDebts` (возвращает `TravelDebtsResponseDTO`).
 - **Переводы/аналитика** (`TransferModels.kt`): `getTransfers`, `createTransfer`, `editTransfer`; отчеты `getExpenseReport` (`TravelExpenseAnalyticsDTO`).
 
 ## Минимальный рабочий пример

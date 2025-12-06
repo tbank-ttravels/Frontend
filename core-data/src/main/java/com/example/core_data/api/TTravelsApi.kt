@@ -19,6 +19,7 @@ import com.example.core_data.model.InvitesResponse
 import com.example.core_data.model.LogoutRequest
 import com.example.core_data.model.MyTravelsResponse
 import com.example.core_data.model.RefreshRequest
+import com.example.core_data.model.TravelDebtsResponseDTO
 import com.example.core_data.model.TravelExpenseAnalyticsDTO
 import com.example.core_data.model.TravelExpensesResponseDTO
 import com.example.core_data.model.TravelMembersResponse
@@ -183,6 +184,11 @@ interface TTravelsApi {
         @Path("id") transferId: Long,
         @Body body: EditTransferRequest
     ): Response<TransferResponse>
+
+    @GET("travels/{travelId}/debt")
+    suspend fun getTravelDebts(
+        @Path("travelId") travelId: Long
+    ): Response<TravelDebtsResponseDTO>
 
     @GET("travels/{travelId}/analytic")
     suspend fun getExpenseReport(

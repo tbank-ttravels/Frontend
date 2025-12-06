@@ -7,7 +7,7 @@ data class ExpenseRequestDTO(
     val name: String,
     val description: String? = null,
     val payerId: Long,
-    val date: String,
+    val date: String? = null,
     val participantShares: Map<Long, Double>,
     val categoryId: Long
 )

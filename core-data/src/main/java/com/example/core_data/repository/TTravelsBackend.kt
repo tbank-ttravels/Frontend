@@ -32,6 +32,7 @@ import com.example.core_data.network.ApiFactory
 import com.example.core_data.network.NetworkDefaults
 import com.example.core_data.network.NetworkResult
 import com.example.core_data.network.safeApiCall
+import com.example.core_data.model.TravelDebtsResponseDTO
 import com.example.core_data.network.InMemoryTokensStore
 import com.example.core_data.network.RefreshAuthenticator
 import com.example.core_data.network.TokensStore
@@ -214,6 +215,10 @@ class TTravelsBackend(
         request: EditTransferRequest
     ): NetworkResult<TransferResponse> =
         safeApiCall(json) { api.editTransfer(travelId, transferId, request) }
+
+    // Debt
+    suspend fun getTravelDebts(travelId: Long): NetworkResult<TravelDebtsResponseDTO> =
+        safeApiCall(json) { api.getTravelDebts(travelId) }
 
     // Analytics
     suspend fun getExpenseReport(travelId: Long): NetworkResult<TravelExpenseAnalyticsDTO> =
