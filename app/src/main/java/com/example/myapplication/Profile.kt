@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.outlined.Person
@@ -23,7 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -39,12 +39,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.core_data.model.LogoutRequest
 import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun Profile(
@@ -52,12 +56,23 @@ fun Profile(
     userViewModel: UserViewModel
 ) {
     val userData by userViewModel.userData.collectAsState()
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(userData.isLoggedIn) {
+        if (!userData.isLoggedIn) {
+            isLoading = false
+            errorMessage = null
+            return@LaunchedEffect
+        }
+        if (userData.name.isNotBlank() && userData.phone.isNotBlank()) {
+            return@LaunchedEffect
+        }
         isLoading = true
-        when (val res = BackendProvider.get(navController.context).getCurrentUser()) {
+        when (val res = backend.getCurrentUser()) {
             is NetworkResult.Success -> {
                 val acc = res.data
                 val combinedName = listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "" }
@@ -168,10 +183,10 @@ fun Profile(
                     }
                 }
 
-                Divider(
-                    color = Color(0xFFEEEEEE),
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
                     thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
+                    color = Color(0xFFEEEEEE)
                 )
 
                 Text(
@@ -231,9 +246,8 @@ fun Profile(
                         containerColor = Color.White,
                         contentColor = Color(0xFF333333)
                     ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
-                        width = 1.dp,
-
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                        width = 1.dp
                     )
                 ) {
                     Row(
@@ -260,9 +274,15 @@ fun Profile(
                 if (userData.isLoggedIn) {
                     Button(
                         onClick = {
-                            userViewModel.logout()
-                            navController.navigate("auth") {
-                                popUpTo(0) { inclusive = true }
+                            scope.launch {
+                                val refresh = backend.tokensStore?.currentTokens()?.refreshToken
+                                if (!refresh.isNullOrBlank()) {
+                                    backend.logout(LogoutRequest(refresh))
+                                }
+                                userViewModel.logout()
+                                navController.navigate("auth") {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         },
                         modifier = Modifier
@@ -282,7 +302,7 @@ fun Profile(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.ExitToApp,
+                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                                 contentDescription = "Выйти",
                                 modifier = Modifier.size(22.dp)
                             )

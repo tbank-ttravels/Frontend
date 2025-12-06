@@ -20,7 +20,7 @@ fun TravelApp() {
         startDestination = "splash"
     ) {
         composable("splash") {
-            SplashScreen(navController = navController)
+            SplashScreen(navController = navController, userViewModel = userViewModel)
         }
 
         composable("auth") {

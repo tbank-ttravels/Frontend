@@ -21,7 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.core_data.model.AuthLoginRequest
 import com.example.core_data.network.NetworkResult
@@ -57,8 +55,8 @@ fun AuthScreen(
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var authState by remember { mutableStateOf<AuthState>(AuthState.Idle) }
-    val userState by userViewModel.userData.collectAsState()
     val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -67,7 +65,7 @@ fun AuthScreen(
                     phone = phone.trim(),
                     password = password
                 )
-                authState = when (val res = BackendProvider.get(context).login(request)) {
+                authState = when (val res = backend.login(request)) {
                     is NetworkResult.Success -> AuthState.Success("Авторизация успешна!")
                     is NetworkResult.HttpError -> AuthState.Error(res.error?.message ?: "Ошибка ${res.code}")
                     is NetworkResult.NetworkError -> AuthState.Error("Проблемы с сетью")
@@ -76,7 +74,6 @@ fun AuthScreen(
                 }
             }
             is AuthState.Success -> {
-                val backend = BackendProvider.get(context)
                 val profileResult = backend.getCurrentUser()
                 val profileName = if (profileResult is NetworkResult.Success) {
                     val acc = profileResult.data
