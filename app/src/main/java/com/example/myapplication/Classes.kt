@@ -1,7 +1,12 @@
 package com.example.myapplication
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
+
 data class Trip(
-    val id: String = System.currentTimeMillis().toString(),
+    val id: String = UUID.randomUUID().toString(),
     val startTown: String,
     val endTown: String,
     val startDate: String,
@@ -12,15 +17,17 @@ data class Trip(
 )
 
 data class User(
-    val id: String = System.currentTimeMillis().toString(),
+    val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val email: String
+    val phone: String
 )
 
 data class Expense(
-    val id: String = System.currentTimeMillis().toString(),
+    val id: String = UUID.randomUUID().toString(),
     val title: String,
     val amount: Double,
     val category: String,
-    val paidBy: String
+    val payerId: String,
+    val paidFor: String = "Только себя",
+    val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
 )

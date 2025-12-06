@@ -1,4 +1,5 @@
 package com.example.myapplication
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 
-// Состояния для регистрации
 sealed class RegistrationState {
     object Idle : RegistrationState()
     object Loading : RegistrationState()
@@ -45,20 +45,24 @@ sealed class RegistrationState {
 }
 
 @Composable
-fun Registration(navController: NavController) {
+fun Registration(
+    navController: NavController,
+    userViewModel: UserViewModel
+) {
+    var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var name by remember { mutableStateOf("") }
     var registrationState by remember { mutableStateOf<RegistrationState>(RegistrationState.Idle) }
     val existingUsers = remember {
         listOf(
-            "79273630708",
-            "79273456789",
+            "79991234567",
+            "79998887766",
             "79995554433"
         )
     }
     suspend fun mockRegistration(name: String, phone: String, password: String): RegistrationState {
         delay(2000)
+
         if (name.length < 2) {
             return RegistrationState.Error("Имя должно содержать не менее 2 символов")
         }
@@ -70,15 +74,18 @@ fun Registration(navController: NavController) {
         if (password.length < 8) {
             return RegistrationState.Error("Пароль должен содержать не менее 8 символов")
         }
+
         if (existingUsers.contains(phone)) {
             return RegistrationState.Error("Пользователь с таким номером уже существует")
         }
+
         return RegistrationState.Success("Аккаунт успешно создан! Добро пожаловать, $name!")
     }
     LaunchedEffect(registrationState) {
         if (registrationState is RegistrationState.Success) {
-            delay(1500)
-            navController.navigate("welcome") {
+            userViewModel.updateUser(name, phone)
+            delay(1000)
+            navController.navigate("profile") {
                 popUpTo("registration") { inclusive = true }
             }
         }
@@ -97,7 +104,6 @@ fun Registration(navController: NavController) {
                 )
             )
     ) {
-
         Text(
             text = "Регистрация",
             fontSize = 28.sp,
@@ -136,8 +142,8 @@ fun Registration(navController: NavController) {
             ) {
                 OutlinedTextField(
                     value = name,
-                    onValueChange = {
-                        name = it
+                    onValueChange = { newName ->
+                        name = newName
                         if (registrationState is RegistrationState.Error) {
                             registrationState = RegistrationState.Idle
                         }
@@ -145,14 +151,13 @@ fun Registration(navController: NavController) {
                     label = { Text("Имя", fontWeight = FontWeight.ExtraBold) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = registrationState is RegistrationState.Error,
-
+                    isError = registrationState is RegistrationState.Error
                 )
 
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = {
-                        phone = it
+                    onValueChange = { newPhone ->
+                        phone = newPhone
                         if (registrationState is RegistrationState.Error) {
                             registrationState = RegistrationState.Idle
                         }
@@ -161,12 +166,12 @@ fun Registration(navController: NavController) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     isError = registrationState is RegistrationState.Error
-
                 )
+
                 OutlinedTextField(
                     value = password,
-                    onValueChange = {
-                        password = it
+                    onValueChange = { newPassword ->
+                        password = newPassword
                         if (registrationState is RegistrationState.Error) {
                             registrationState = RegistrationState.Idle
                         }
@@ -175,9 +180,9 @@ fun Registration(navController: NavController) {
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = registrationState is RegistrationState.Error,
-                    placeholder = { Text("Не менее 8 символов") }
+                    isError = registrationState is RegistrationState.Error
                 )
+
                 when (registrationState) {
                     is RegistrationState.Error -> {
                         Text(
@@ -201,6 +206,7 @@ fun Registration(navController: NavController) {
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
                 Button(
                     onClick = {
                         registrationState = RegistrationState.Loading
@@ -224,6 +230,7 @@ fun Registration(navController: NavController) {
                         Text("Создать аккаунт", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                     }
                 }
+
                 Button(
                     onClick = {
                         navController.popBackStack()

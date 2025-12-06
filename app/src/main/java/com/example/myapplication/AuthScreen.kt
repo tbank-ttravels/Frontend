@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
 
 
@@ -45,12 +47,18 @@ sealed class AuthState {
 }
 
 @Composable
-fun AuthScreen(navController: NavController) {
+fun AuthScreen(
+    navController: NavHostController,
+    userViewModel: UserViewModel
+)  {
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var authState by remember { mutableStateOf<AuthState>(AuthState.Idle) }
+    val userState by userViewModel.userData.collectAsState()
+
     suspend fun mockAuth(phone: String, password: String): AuthState {
         delay(1500)
+
         if (phone.length < 10) {
             return AuthState.Error("Номер телефона должен содержать не менее 10 цифр")
         }
@@ -59,12 +67,12 @@ fun AuthScreen(navController: NavController) {
             return AuthState.Error("Пароль должен содержать не менее 8 символов")
         }
 
-
         val mockUsers = listOf(
             "79273630708" to "Qwerty80",
             "79273456789" to "Ghjk8989",
             "79995554433" to "Cvbn7899"
         )
+
         val isValidUser = mockUsers.any { it.first == phone && it.second == password }
 
         return if (isValidUser) {
@@ -73,15 +81,19 @@ fun AuthScreen(navController: NavController) {
             AuthState.Error("Неверный номер телефона или пароль")
         }
     }
-
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
+            userViewModel.updateUser(
+                name = "Пользователь",
+                phone = phone
+            )
             delay(500)
-            navController.navigate("welcome") {
+            navController.navigate("profile") {
                 popUpTo("auth") { inclusive = true }
             }
         }
     }
+
 
     Box(
         modifier = Modifier
