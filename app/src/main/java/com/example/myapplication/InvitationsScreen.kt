@@ -13,24 +13,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import kotlinx.coroutines.delay
+import com.example.core_data.model.InvitesItem
+import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.myapplication.formatDateForUi
 
 
 @Composable
 fun InvitationsScreen(
-    navController: NavHostController,
-    tripViewModel: TripViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    navController: NavHostController
 ) {
     var invitations by remember { mutableStateOf<List<TripInvitation>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var respondingId by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(key1 = true) {
-        delay(800)
-        invitations = getMockInvitations()
+        loading = true
+        errorMessage = null
+        when (val res = backend.getInvites()) {
+            is NetworkResult.Success -> {
+                invitations = res.data.invites.map { it.toTripInvitation() }
+                errorMessage = null
+            }
+            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+            else -> errorMessage = "Не удалось загрузить приглашения"
+        }
         loading = false
     }
 
@@ -72,37 +91,109 @@ fun InvitationsScreen(
             )
         }
 
-        if (loading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    color = Color(0xFFFFDD2D)
-                )
+        when {
+            loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFFFDD2D)
+                    )
+                }
             }
-        } else if (invitations.isEmpty()) {
-            EmptyInvitationsState()
-        } else {
-            InvitationsList(invitations = invitations, onInvitationAction = { invitation, action ->
-                when (action) {
-                    InvitationAction.ACCEPT -> {
-                        invitations = invitations.map {
-                            if (it.id == invitation.id) it.copy(status = InvitationStatus.ACCEPTED)
-                            else it
-                        }
-                    }
-                    InvitationAction.REJECT -> {
-                        invitations = invitations.map {
-                            if (it.id == invitation.id) it.copy(status = InvitationStatus.REJECTED)
-                            else it
-                        }
-                    }
-                    InvitationAction.VIEW_TRIP -> {
-                        navController.navigate("trip_detail/${invitation.tripName}")
+            errorMessage != null -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = errorMessage ?: "Ошибка",
+                        color = Color.Red,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            loading = true
+                            errorMessage = null
+                            scope.launch {
+                                when (val res = backend.getInvites()) {
+                                    is NetworkResult.Success -> {
+                                        invitations = res.data.invites.map { it.toTripInvitation() }
+                                        errorMessage = null
+                                    }
+                                    is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+                                    is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                    is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                    else -> errorMessage = "Не удалось загрузить приглашения"
+                                }
+                                loading = false
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFDD2D),
+                            contentColor = Color(0xFF333333)
+                        )
+                    ) {
+                        Text("Повторить")
                     }
                 }
-            })
+            }
+            invitations.isEmpty() -> {
+                EmptyInvitationsState()
+            }
+            else -> {
+                InvitationsList(
+                    invitations = invitations,
+                    respondingId = respondingId,
+                    onInvitationAction = { invitation, action ->
+                        when (action) {
+                            InvitationAction.ACCEPT -> {
+                                if (respondingId != null) return@InvitationsList
+                                respondingId = invitation.id
+                                scope.launch {
+                                    val inviteId = invitation.id.toLongOrNull()
+                                    val res = inviteId?.let { backend.respondToInvite(it, true) }
+                                    if (res is NetworkResult.HttpError || res is NetworkResult.NetworkError || res is NetworkResult.SerializationError) {
+                                        errorMessage = "Не удалось принять приглашение"
+                                    } else {
+                                        invitations = invitations.map {
+                                            if (it.id == invitation.id) it.copy(status = InvitationStatus.ACCEPTED)
+                                            else it
+                                        }
+                                    }
+                                    respondingId = null
+                                }
+                            }
+                            InvitationAction.REJECT -> {
+                                if (respondingId != null) return@InvitationsList
+                                respondingId = invitation.id
+                                scope.launch {
+                                    val inviteId = invitation.id.toLongOrNull()
+                                    val res = inviteId?.let { backend.respondToInvite(it, false) }
+                                    if (res is NetworkResult.HttpError || res is NetworkResult.NetworkError || res is NetworkResult.SerializationError) {
+                                        errorMessage = "Не удалось отклонить приглашение"
+                                    } else {
+                                        invitations = invitations.map {
+                                            if (it.id == invitation.id) it.copy(status = InvitationStatus.REJECTED)
+                                            else it
+                                        }
+                                    }
+                                    respondingId = null
+                                }
+                            }
+                            InvitationAction.VIEW_TRIP -> {
+                                navController.navigate("trip_detail/${invitation.tripName}")
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -142,6 +233,7 @@ fun EmptyInvitationsState() {
 @Composable
 fun InvitationsList(
     invitations: List<TripInvitation>,
+    respondingId: String?,
     onInvitationAction: (TripInvitation, InvitationAction) -> Unit
 ) {
     val pendingInvitations = invitations.filter { it.status == InvitationStatus.PENDING }
@@ -167,6 +259,7 @@ fun InvitationsList(
             items(pendingInvitations) { invitation ->
                 PendingInvitationCard(
                     invitation = invitation,
+                    isProcessing = respondingId == invitation.id,
                     onAccept = { onInvitationAction(invitation, InvitationAction.ACCEPT) },
                     onReject = { onInvitationAction(invitation, InvitationAction.REJECT) }
                 )
@@ -218,6 +311,7 @@ fun InvitationsList(
 @Composable
 fun PendingInvitationCard(
     invitation: TripInvitation,
+    isProcessing: Boolean,
     onAccept: () -> Unit,
     onReject: () -> Unit
 ) {
@@ -264,12 +358,6 @@ fun PendingInvitationCard(
                         color = Color(0xFF333333)
                     )
                     Text(
-                        text = "Пригласил(а): ${invitation.fromUserName}",
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666),
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    Text(
                         text = invitation.date,
                         fontSize = 12.sp,
                         color = Color(0xFF888888),
@@ -304,15 +392,24 @@ fun PendingInvitationCard(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF4CAF50),
                         contentColor = Color.White
-                    )
+                    ),
+                    enabled = !isProcessing
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "Принять",
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Принять")
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = "Принять",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Принять")
+                    }
                 }
 
                 Button(
@@ -325,7 +422,8 @@ fun PendingInvitationCard(
                     ),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         width = 1.dp
-                    )
+                    ),
+                    enabled = !isProcessing
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Close,
@@ -380,12 +478,6 @@ fun InvitationHistoryCard(
                         tint = Color(0xFF666666),
                         modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = invitation.fromUserName,
-                        fontSize = 14.sp,
-                        color = Color(0xFF666666)
-                    )
                 }
                 Text(
                     text = invitation.date,
@@ -415,35 +507,14 @@ fun InvitationHistoryCard(
 
 
                 }
-            }
         }
     }
-
-
-
-private fun getMockInvitations(): List<TripInvitation> {
-    return listOf(
-        TripInvitation(
-            id = "1",
-            tripName = "Сочи",
-            fromUserName = "Александр",
-            date = "15.01.2026",
-            status = InvitationStatus.PENDING
-        ),
-        TripInvitation(
-            id = "2",
-            tripName = "Cанкт-Петербург",
-            fromUserName = "Никита",
-            date = "10.01.2026",
-            status = InvitationStatus.ACCEPTED
-        ),
-        TripInvitation(
-            id = "3",
-            tripName = " Mосквa",
-            fromUserName = "Виктор",
-            date = "05.01.2026",
-            status = InvitationStatus.REJECTED
-        )
-    )
 }
 
+private fun InvitesItem.toTripInvitation(): TripInvitation =
+    TripInvitation(
+        id = inviteId.toString(),
+        tripName = travelName ?: "Поездка",
+        date = listOfNotNull(startDate, endDate).firstOrNull()?.let { formatDateForUi(it) } ?: "",
+        status = InvitationStatus.PENDING
+    )

@@ -7,7 +7,6 @@ import java.util.UUID
 data class TripInvitation(
     val id: String,
     val tripName: String,
-    val fromUserName: String,
     val date: String,
     val status: InvitationStatus
 )
