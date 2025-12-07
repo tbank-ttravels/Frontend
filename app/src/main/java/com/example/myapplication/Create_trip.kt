@@ -277,7 +277,7 @@ fun Create_trip(
                                                 participants = emptyList(),
                                                 expenses = emptyList()
                                             )
-                                            tripViewModel.addTrip(mapped)
+                                            tripViewModel.upsertTrip(mapped)
                                             navController.navigate("main") {
                                                 popUpTo("create_trip") { inclusive = true }
                                             }
