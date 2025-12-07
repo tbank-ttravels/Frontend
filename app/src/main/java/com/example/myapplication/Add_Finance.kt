@@ -203,7 +203,9 @@ fun Add_Finance(
                     }
                 )
 
-                1 -> TransfersTab(trip = trip,  tripViewModel)
+                1 -> TransfersTab(trip = trip,
+                    navController = navController,
+                    tripViewModel = tripViewModel)
             }
         }
     }

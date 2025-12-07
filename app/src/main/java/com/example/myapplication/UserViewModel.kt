@@ -15,7 +15,8 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     data class UserData(
         val name: String = "",
         val phone: String = "",
-        val isLoggedIn: Boolean = false
+        val isLoggedIn: Boolean = false,
+        val id: String = "",
     )
 
     private val _userData = MutableStateFlow(UserData())

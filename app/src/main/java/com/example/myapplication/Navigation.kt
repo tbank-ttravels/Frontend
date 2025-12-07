@@ -1,7 +1,5 @@
 package com.example.myapplication
 
-import FinanceTab
-import TripDetailScreen
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,6 +46,20 @@ fun TravelApp() {
                 userViewModel = userViewModel
             )
         }
+        composable("add_transfer/{tripId}") { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId")
+            AddTransferScreen(
+                tripId = tripId,
+                navController = navController,
+                tripViewModel = tripViewModel
+            )
+        }
+
+        composable("invitations") {
+            InvitationsScreen(navController = navController)
+        }
+
+
 
         composable("profile") {
             Profile(
@@ -62,15 +74,7 @@ fun TravelApp() {
                 tripViewModel = tripViewModel
             )
         }
-        composable("add_finance/{tripId}") { backStackEntry ->
-            val tripId = backStackEntry.arguments?.getString("tripId")
-            val trip = tripViewModel.getTripById(tripId ?: "")
-            if (trip != null) {
-                Add_Finance(trip = trip, tripViewModel = tripViewModel,navController)
-            } else {
-                Text("Поездка не найдена")
-            }
-        }
+
         composable("add_finance/{tripId}") { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId")
             val trip = tripViewModel.getTripById(tripId ?: "")
@@ -84,12 +88,19 @@ fun TravelApp() {
                 Text("Поездка не найдена")
             }
         }
+
         composable("edit_profile") {
             EditProfileScreen(navController = navController, userViewModel = userViewModel)
         }
+
         composable("add_participant/{tripId}") { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId")
-            AddParticipantScreen(tripId = tripId, navController = navController, tripViewModel = tripViewModel)
+            AddParticipantScreen(
+                tripId = tripId,
+                navController = navController,
+                userViewModel = userViewModel,
+                tripViewModel = tripViewModel
+            )
         }
 
         composable("trip_detail/{tripId}") { backStackEntry ->
@@ -97,7 +108,8 @@ fun TravelApp() {
             TripDetailScreen(
                 tripId = tripId,
                 navController = navController,
-                tripViewModel = tripViewModel
+                tripViewModel = tripViewModel,
+                userViewModel = userViewModel
             )
         }
 
@@ -109,5 +121,5 @@ fun TravelApp() {
                 tripViewModel = tripViewModel
             )
         }
-
-    }}
+    }
+}
