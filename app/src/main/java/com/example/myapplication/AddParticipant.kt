@@ -12,16 +12,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
 fun AddParticipantScreen(
     tripId: String?,
     navController: NavHostController,
-    tripViewModel: TripViewModel
+    tripViewModel: TripViewModel,
+    userViewModel: UserViewModel
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+
+    val trip by remember(tripId) {
+        derivedStateOf {
+            tripId?.let { tripViewModel.getTripById(it) }
+        }
+    }
+
+    val currentUser by userViewModel.userData.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -84,25 +95,35 @@ fun AddParticipantScreen(
 
             Button(
                 onClick = {
-                    if (name.isNotBlank() && tripId != null) {
+                    if (name.isNotBlank() && phone.isNotBlank() && tripId != null && trip != null) {
                         val newParticipant = User(
                             id = UUID.randomUUID().toString(),
                             name = name,
-                            phone = phone,
+                            phone = phone
                         )
+
                         tripViewModel.addParticipantToTrip(tripId, newParticipant)
+
+                        val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+
+                        tripViewModel.sendInvitation(
+                            tripId = tripId,
+                            userId = newParticipant.id,
+                            invitedBy = currentUser.name
+                        )
+
                         navController.navigateUp()
                     }
                 },
                 modifier = Modifier.weight(1f).padding(start = 8.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFFFBE7),
+                    containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
                 ),
                 enabled = name.isNotBlank() && phone.isNotBlank()
             ) {
-                Text("Добавить", fontWeight = FontWeight.SemiBold)
+                Text("Отправить приглашение", fontWeight = FontWeight.SemiBold)
             }
         }
     }

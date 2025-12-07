@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import java.util.UUID
+import java.text.SimpleDateFormat
+import java.util.*
 
 data class Transfer(
     val fromUserId: String,
@@ -19,6 +20,12 @@ class TripViewModel : ViewModel() {
     val trips: StateFlow<List<Trip>> = _trips
 
     private val _expenses = MutableStateFlow<Map<String, List<Expense>>>(emptyMap())
+
+    private val _invitations = MutableStateFlow<List<TripInvitation>>(emptyList())
+    val invitations: StateFlow<List<TripInvitation>> = _invitations
+
+    private val _notifications = MutableStateFlow<List<Notification>>(emptyList())
+    val notifications: StateFlow<List<Notification>> = _notifications
 
     companion object {
         val expenseCategories = listOf(
@@ -35,6 +42,10 @@ class TripViewModel : ViewModel() {
         println("TripViewModel создан")
 
         viewModelScope.launch {
+            val tatianaId = UUID.randomUUID().toString()
+            val igorId = UUID.randomUUID().toString()
+            val svetlanaId = UUID.randomUUID().toString()
+
             val testTrip = Trip(
                 startTown = "Москва",
                 endTown = "Санкт-Петербург",
@@ -42,9 +53,9 @@ class TripViewModel : ViewModel() {
                 endDate = "20.01.2024",
                 budget = "50000",
                 participants = listOf(
-                    User(name = "Татьяна", phone = "89345678978"),
-                    User(name = "Игорь", phone = "89457899068"),
-                    User(name = "Светлана", phone = "89324567890")
+                    User(id = tatianaId, name = "Татьяна", phone = "+79856789090"),
+                    User(id = igorId, name = "Игорь", phone = "89457899068"),
+                    User(id = svetlanaId, name = "Светлана", phone = "89324567890")
                 )
             )
             addTrip(testTrip)
@@ -62,7 +73,7 @@ class TripViewModel : ViewModel() {
                                 title = "Билеты на поезд",
                                 amount = 6000.0,
                                 category = "Транспорт",
-                                payerId = participants[0].id,
+                                payerId = tatianaId,
                                 paidFor = "За всех участников"
                             )
                         )
@@ -73,7 +84,7 @@ class TripViewModel : ViewModel() {
                                 title = "Отель",
                                 amount = 15000.0,
                                 category = "Проживание",
-                                payerId = participants[1].id,
+                                payerId = igorId,
                                 paidFor = "За всех участников"
                             )
                         )
@@ -84,7 +95,7 @@ class TripViewModel : ViewModel() {
                                 title = "Ужин в ресторане",
                                 amount = 5000.0,
                                 category = "Еда",
-                                payerId = participants[2].id,
+                                payerId = svetlanaId,
                                 paidFor = "За: Татьяна"
                             )
                         )
@@ -99,6 +110,75 @@ class TripViewModel : ViewModel() {
             println("Добавляем поездку: ${newTrip.startTown} -> ${newTrip.endTown}")
             _trips.value = _trips.value + newTrip
             println("Теперь поездок: ${_trips.value.size}")
+        }
+    }
+
+    fun sendInvitation(tripId: String, userId: String, invitedBy: String) {
+        viewModelScope.launch {
+            val trip = getTripById(tripId)
+            if (trip != null) {
+                val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+                val invitation = TripInvitation(
+                    id = UUID.randomUUID().toString(),
+                    tripName = "${trip.startTown} → ${trip.endTown}",
+                    fromUserName = invitedBy,
+                    date = dateFormat.format(Date()),
+                    status = InvitationStatus.PENDING
+                )
+                _invitations.value = _invitations.value + invitation
+
+                val notification = Notification(
+                    id = UUID.randomUUID().toString(),
+                    title = "Приглашение в поездку",
+                    message = "Вас приглашают в поездку ${trip.startTown} → ${trip.endTown} от $invitedBy",
+                    date = dateFormat.format(Date()),
+                    type = NotificationType.INVITATION,
+                    isRead = false
+                )
+                _notifications.value = _notifications.value + notification
+
+                println("Отправлено приглашение пользователю $userId в поездку $tripId")
+            }
+        }
+    }
+
+    fun confirmParticipation(tripId: String, userId: String) {
+        viewModelScope.launch {
+            println("Пользователь $userId подтвердил участие в поездке $tripId")
+        }
+    }
+
+    fun rejectInvitation(tripId: String, userId: String) {
+        viewModelScope.launch {
+            println("Пользователь $userId отклонил приглашение в поездку $tripId")
+        }
+    }
+
+    fun getInvitationById(invitationId: String): TripInvitation? {
+        return _invitations.value.find { it.id == invitationId }
+    }
+
+    fun acceptInvitation(invitationId: String) {
+        viewModelScope.launch {
+            _invitations.value = _invitations.value.map { invitation ->
+                if (invitation.id == invitationId) {
+                    invitation.copy(status = InvitationStatus.ACCEPTED)
+                } else {
+                    invitation
+                }
+            }
+        }
+    }
+
+    fun rejectInvitationById(invitationId: String) {
+        viewModelScope.launch {
+            _invitations.value = _invitations.value.map { invitation ->
+                if (invitation.id == invitationId) {
+                    invitation.copy(status = InvitationStatus.REJECTED)
+                } else {
+                    invitation
+                }
+            }
         }
     }
 
@@ -213,5 +293,21 @@ class TripViewModel : ViewModel() {
     fun calculateParticipantBalanceForTrip(userId: String, tripId: String): Double {
         val trip = getTripById(tripId) ?: return 0.0
         return calculateParticipantBalance(userId, trip)
+    }
+
+    fun markNotificationAsRead(notificationId: String) {
+        viewModelScope.launch {
+            _notifications.value = _notifications.value.map { notification ->
+                if (notification.id == notificationId) {
+                    notification.copy(isRead = true)
+                } else {
+                    notification
+                }
+            }
+        }
+    }
+
+    fun getUnreadNotificationsCount(): Int {
+        return _notifications.value.count { !it.isRead }
     }
 }
