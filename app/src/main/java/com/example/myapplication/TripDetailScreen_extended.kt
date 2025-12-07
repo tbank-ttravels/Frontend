@@ -1,20 +1,50 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.core_data.model.TravelResponse
+import com.example.core_data.network.NetworkResult
 
 @Composable
 fun TripDetailScreen(
@@ -24,14 +54,51 @@ fun TripDetailScreen(
     userViewModel: UserViewModel
 ) {
     var trip by remember { mutableStateOf<Trip?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
 
     LaunchedEffect(tripId) {
-        if (tripId != null) {
-            trip = tripViewModel.getTripById(tripId)
+        if (tripId == null) return@LaunchedEffect
+        isLoading = true
+        errorMessage = null
+        when (val res = backend.getTravel(tripId.toLong())) {
+            is NetworkResult.Success -> {
+                val mapped = res.data.toTripUi()
+                tripViewModel.upsertTrip(mapped)
+                trip = mapped
+            }
+            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+            else -> errorMessage = "Не удалось загрузить поездку"
         }
+        if (errorMessage == null) {
+            when (val membersRes = backend.getTravelMembers(tripId.toLong())) {
+                is NetworkResult.Success -> {
+                    val members = membersRes.data.members.map {
+                        User(
+                            id = it.id.toString(),
+                            name = it.name.orEmpty(),
+                            phone = it.phone.orEmpty(),
+                            status = it.status
+                        )
+                    }
+                    tripViewModel.setParticipants(tripId, members)
+                    trip = trip?.copy(participants = members) ?: tripViewModel.getTripById(tripId)
+                }
+                is NetworkResult.HttpError -> errorMessage = membersRes.error?.message ?: "Ошибка ${membersRes.code}"
+                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                else -> errorMessage = "Не удалось загрузить участников"
+            }
+        }
+        isLoading = false
     }
 
-    LaunchedEffect(tripViewModel.trips.collectAsState().value) {
+    val tripsState by tripViewModel.trips.collectAsState()
+    LaunchedEffect(tripsState) {
         if (tripId != null) {
             trip = tripViewModel.getTripById(tripId)
         }
@@ -96,6 +163,25 @@ fun TripDetailScreen(
             }
         }
 
+        if (isLoading) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                color = Color(0xFFFFDD2D),
+                trackColor = Color(0x33FFFFDD2D)
+            )
+        }
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = Color.Red,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -112,7 +198,7 @@ fun TripDetailScreen(
                     .padding(20.dp)
             ) {
                 Text(
-                    text = "${trip!!.startTown} ✈ ${trip!!.endTown}",
+                    text = trip!!.name,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF333333)
@@ -135,8 +221,15 @@ fun TripDetailScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
+                            val dateText = buildString {
+                                append(trip!!.startDate)
+                                if (!trip!!.endDate.isNullOrBlank()) {
+                                    append(" - ")
+                                    append(trip!!.endDate)
+                                }
+                            }
                             Text(
-                                text = "${trip!!.startDate} - ${trip!!.endDate}",
+                                text = dateText,
                                 fontSize = 14.sp,
                                 color = Color(0xFF666666),
                                 fontWeight = FontWeight.Medium
@@ -145,18 +238,9 @@ fun TripDetailScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AttachMoney,
-                                contentDescription = "Бюджет",
-                                tint = Color(0xFFFFDD2D),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        trip!!.description?.takeIf { it.isNotBlank() }?.let { desc ->
                             Text(
-                                text = "Бюджет: ${trip!!.budget}",
+                                text = desc,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color(0xFF666666)
@@ -263,3 +347,15 @@ fun TripDetailScreen(
         }
     }
 }
+
+private fun TravelResponse.toTripUi(): Trip =
+    Trip(
+        id = id.toString(),
+        name = name,
+        description = description,
+        startDate = formatDateForUi(startDate),
+        endDate = formatDateForUi(endDate),
+        status = status,
+        participants = emptyList(),
+        expenses = emptyList()
+    )
