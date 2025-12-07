@@ -121,7 +121,6 @@ class TripViewModel : ViewModel() {
                 val invitation = TripInvitation(
                     id = UUID.randomUUID().toString(),
                     tripName = "${trip.startTown} → ${trip.endTown}",
-                    fromUserName = invitedBy,
                     date = dateFormat.format(Date()),
                     status = InvitationStatus.PENDING
                 )
