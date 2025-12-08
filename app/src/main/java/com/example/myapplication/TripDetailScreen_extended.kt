@@ -56,6 +56,7 @@ fun TripDetailScreen(
     var trip by remember { mutableStateOf<Trip?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val userData by userViewModel.userData.collectAsState()
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
 
@@ -82,7 +83,8 @@ fun TripDetailScreen(
                             id = it.id.toString(),
                             name = it.name.orEmpty(),
                             phone = it.phone.orEmpty(),
-                            status = it.status
+                            status = it.status,
+                            role = it.role
                         )
                     }
                     tripViewModel.setParticipants(tripId, members)
@@ -102,6 +104,9 @@ fun TripDetailScreen(
         if (tripId != null) {
             trip = tripViewModel.getTripById(tripId)
         }
+    }
+    val isOwner = remember(trip, userData) {
+        trip?.participants?.any { it.phone == userData.phone && it.role.equals("OWNER", ignoreCase = true) } == true
     }
 
     if (trip == null) {
@@ -169,7 +174,7 @@ fun TripDetailScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 color = Color(0xFFFFDD2D),
-                trackColor = Color(0x33FFFFDD2D)
+                trackColor = Color(0xFF70631C)
             )
         }
         errorMessage?.let {
@@ -285,7 +290,7 @@ fun TripDetailScreen(
                     navController = navController
                 )
                 1 -> FinanceTab(trip = trip!!, tripViewModel = tripViewModel, navController = navController)
-                2 -> ReportTab(trip = trip!!)
+                2 -> ReportTab(trip = trip!!, isOwner = isOwner)
                 3 -> AnalyticsTab(trip = trip!!)
             }
         }
@@ -320,29 +325,31 @@ fun TripDetailScreen(
                 )
             }
 
-            Button(
-                onClick = { navController.navigate("edit_trip/${trip!!.id}") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFFDD2D),
-                    contentColor = Color(0xFF333333)
-                ),
-                elevation = ButtonDefaults.buttonElevation(
-                    defaultElevation = 4.dp,
-                    pressedElevation = 2.dp
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = "Редактировать",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Редактировать",
-                    fontWeight = FontWeight.SemiBold
-                )
+            if (isOwner) {
+                Button(
+                    onClick = { navController.navigate("edit_trip/${trip!!.id}") },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFDD2D),
+                        contentColor = Color(0xFF333333)
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Редактировать",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Редактировать",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }

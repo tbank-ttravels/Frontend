@@ -54,7 +54,8 @@ data class User(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val phone: String,
-    val status: String? = null
+    val status: String? = null,
+    val role: String? = null
 )
 data class CategoryAnalytics(
     val categoryName: String,
