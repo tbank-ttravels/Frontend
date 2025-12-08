@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.core_data.model.EditTravelRequest
 import com.example.core_data.network.NetworkResult
-import com.example.myapplication.formatDateForUi
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -140,7 +139,7 @@ fun EditTripScreen(
                 .padding(top = 40.dp, start = 16.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.ArrowBack,
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Назад",
                 tint = Color(0xFF333333),
                 modifier = Modifier.size(32.dp)

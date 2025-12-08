@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -279,13 +279,14 @@ fun ParticipantsTab(
                     containerColor = Color.White,
                     contentColor = Color(0xFFF44336)
                 ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    width = 1.dp,
-
+                border = ButtonDefaults.outlinedButtonBorder(
+                    enabled = true
+                ).copy(
+                    width = 1.dp
                 )
             ) {
                 Icon(
-                    imageVector = Icons.Filled.ExitToApp,
+                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                     contentDescription = "Выйти из поездки",
                     modifier = Modifier.size(18.dp)
                 )
@@ -395,7 +396,9 @@ fun ParticipantsTab(
                     onClick = { showLeaveDialog = false },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                    border = ButtonDefaults.outlinedButtonBorder(
+                        enabled = true
+                    ).copy(
                         width = 1.dp
                     )
                 ) {
