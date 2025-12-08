@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.MailOutline
-import androidx.compose.material.icons.filled.Notifications
+//import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,13 +54,10 @@ import com.example.core_data.network.NetworkResult
 @Composable
 fun CreateTab(
     navController: NavController,
-    tripViewModel: TripViewModel = viewModel(),
-    userViewModel: UserViewModel = viewModel()
+    tripViewModel: TripViewModel = viewModel()
 ) {
     val trips by tripViewModel.trips.collectAsState()
-    val userData by userViewModel.userData.collectAsState()
     var pendingInvitationsCount by remember { mutableStateOf(0) }
-    var hasNewNotifications by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -187,7 +184,7 @@ fun CreateTab(
                     .fillMaxWidth()
                     .padding(horizontal = 25.dp),
                 color = Color(0xFFFFDD2D),
-                trackColor = Color(0x33FFFFDD2D)
+                trackColor = Color(0xFFFFDD2D)
             )
         }
         loadError?.let { err ->

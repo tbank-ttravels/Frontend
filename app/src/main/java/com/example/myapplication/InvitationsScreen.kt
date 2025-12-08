@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,8 +23,6 @@ import com.example.core_data.model.InvitesItem
 import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
-import com.example.myapplication.formatDateForUi
-
 
 @Composable
 fun InvitationsScreen(
@@ -77,7 +76,7 @@ fun InvitationsScreen(
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Назад",
                     tint = Color(0xFF333333)
                 )
@@ -420,7 +419,9 @@ fun PendingInvitationCard(
                         containerColor = Color(0xFFF5F5F5),
                         contentColor = Color(0xFFF44336)
                     ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                    border = ButtonDefaults.outlinedButtonBorder(
+                        enabled = true
+                    ).copy(
                         width = 1.dp
                     ),
                     enabled = !isProcessing
