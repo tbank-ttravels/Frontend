@@ -33,7 +33,7 @@ fun MainScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            //.padding(16.dp),
     ) {
         CreateTab(navController, tripViewModel)
         Button(
@@ -41,11 +41,11 @@ fun MainScreen(
                 navController.navigate("profile")
             },
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 8.dp),
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 16.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFFDD2D),
+                containerColor = Color(0xFFFFFFFF),
                 contentColor = Color(0xFF333333)
             ),
             elevation = ButtonDefaults.buttonElevation(

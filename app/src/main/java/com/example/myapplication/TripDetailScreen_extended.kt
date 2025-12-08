@@ -342,7 +342,7 @@ fun TripDetailScreen(
                     Icon(
                         imageVector = Icons.Filled.Edit,
                         contentDescription = "Редактировать",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(

@@ -138,8 +138,8 @@ fun CreateTab(
                         if (pendingInvitationsCount > 0) {
                             Box(
                                 modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .size(20.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .size(16.dp)
                                     .background(Color(0xFFFF5252), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -153,7 +153,7 @@ fun CreateTab(
                         }
                     }
                 }
-
+                /*
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(
                     onClick = { navController.navigate("notifications") },
@@ -178,6 +178,7 @@ fun CreateTab(
                         }
                     }
                 }
+                */
             }
         }
         if (isLoading) {
@@ -201,7 +202,8 @@ fun CreateTab(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 25.dp, vertical = 8.dp)
+                .padding(horizontal = 25.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "Куда отправимся?",
@@ -217,13 +219,12 @@ fun CreateTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Card(
-                    onClick = { },
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(
                             width = 2.dp,
                             color = Color.Gray,
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ),
                     colors = CardDefaults.cardColors(containerColor = Color.White)
                 ) {
@@ -332,8 +333,8 @@ fun CreateTab(
                     shape = RoundedCornerShape(16.dp)
                 ),
             shape = RoundedCornerShape(
-                topStart = 32.dp,
-                topEnd = 32.dp
+                topStart = 16.dp,
+                topEnd = 16.dp
             ),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
