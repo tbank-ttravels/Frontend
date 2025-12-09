@@ -290,7 +290,7 @@ fun BalanceCard(
                         }
 
                         Text(
-                            text = formatCurrency(balance),
+                            text = "${balance.toInt()} ₽",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -381,7 +381,7 @@ fun ClickableTransferItem(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333)
@@ -435,7 +435,7 @@ fun ClickableTransferItem(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
@@ -522,7 +522,7 @@ fun ClickableTransferItem(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
