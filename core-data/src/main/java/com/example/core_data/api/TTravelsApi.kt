@@ -19,6 +19,7 @@ import com.example.core_data.model.InvitesResponse
 import com.example.core_data.model.LogoutRequest
 import com.example.core_data.model.MyTravelsResponse
 import com.example.core_data.model.RefreshRequest
+import com.example.core_data.model.UpdateAccountRequest
 import com.example.core_data.model.TravelDebtsResponseDTO
 import com.example.core_data.model.TravelExpenseAnalyticsDTO
 import com.example.core_data.model.TravelExpensesResponseDTO
@@ -55,8 +56,11 @@ interface TTravelsApi {
     @POST("account/logout")
     suspend fun logout(@Body body: LogoutRequest): Response<Unit>
 
-    @GET("account/me")
+    @GET("account")
     suspend fun getCurrentUser(): Response<AccountResponse>
+
+    @POST("account")
+    suspend fun updateAccount(@Body body: UpdateAccountRequest): Response<AccountResponse>
 
     @GET("account/invites")
     suspend fun getInvites(): Response<InvitesResponse>
