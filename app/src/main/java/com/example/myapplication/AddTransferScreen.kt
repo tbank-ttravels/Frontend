@@ -197,11 +197,14 @@ fun AddTransferScreen(
             Button(
                 onClick = {
                     if (fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()) {
-                        val transfer = Transfer(
+                        val amountValue = amount.toDoubleOrNull() ?: 0.0
+                        tripViewModel.addTransfer(
+                            tripId = tripId ?: "",
                             fromUserId = fromUserId,
                             toUserId = toUserId,
-                            amount = amount.toDoubleOrNull() ?: 0.0
+                            amount = amountValue
                         )
+
                         navController.navigateUp()
                     }
                 },
