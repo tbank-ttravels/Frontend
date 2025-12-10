@@ -49,11 +49,10 @@ class TripViewModel : ViewModel() {
             val svetlanaId = UUID.randomUUID().toString()
 
             val testTrip = Trip(
-                startTown = "Москва",
-                endTown = "Санкт-Петербург",
+                name = "Москва - Санкт-Петербург",
+                description = "Выходные в Петербурге",
                 startDate = "15.01.2024",
                 endDate = "20.01.2024",
-                budget = "50000",
                 participants = listOf(
                     User(id = tatianaId, name = "Татьяна", phone = "+79856789090"),
                     User(id = igorId, name = "Игорь", phone = "89457899068"),
@@ -109,7 +108,7 @@ class TripViewModel : ViewModel() {
 
     fun addTrip(newTrip: Trip) {
         viewModelScope.launch {
-            println("Добавляем поездку: ${newTrip.startTown} -> ${newTrip.endTown}")
+            println("Добавляем поездку: ${newTrip.name}")
             _trips.value = _trips.value + newTrip
             println("Теперь поездок: ${_trips.value.size}")
         }
@@ -122,8 +121,7 @@ class TripViewModel : ViewModel() {
                 val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
                 val invitation = TripInvitation(
                     id = UUID.randomUUID().toString(),
-                    tripName = "${trip.startTown} → ${trip.endTown}",
-                    fromUserName = invitedBy,
+                    tripName = trip.name,
                     date = dateFormat.format(Date()),
                     status = InvitationStatus.PENDING
                 )
@@ -132,7 +130,7 @@ class TripViewModel : ViewModel() {
                 val notification = Notification(
                     id = UUID.randomUUID().toString(),
                     title = "Приглашение в поездку",
-                    message = "Вас приглашают в поездку ${trip.startTown} → ${trip.endTown} от $invitedBy",
+                    message = "Вас приглашают в поездку ${trip.name}",
                     date = dateFormat.format(Date()),
                     type = NotificationType.INVITATION,
                     isRead = false
@@ -328,6 +326,32 @@ class TripViewModel : ViewModel() {
 
     fun getTransfersForTrip(tripId: String): List<Transfer> {
         return _transfers.value[tripId] ?: emptyList()
+    }
+
+    fun setParticipants(tripId: String, participants: List<User>) {
+        viewModelScope.launch {
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == tripId) trip.copy(participants = participants) else trip
+            }
+        }
+    }
+
+    fun upsertTrip(trip: Trip) {
+        viewModelScope.launch {
+            val existing = _trips.value.any { it.id == trip.id }
+            _trips.value = if (existing) {
+                _trips.value.map { if (it.id == trip.id) trip else it }
+            } else {
+                _trips.value + trip
+            }
+        }
+    }
+
+    fun replaceTrips(trips: List<Trip>) {
+        viewModelScope.launch {
+            _trips.value = trips
+            _expenses.value = emptyMap()
+        }
     }
 
     fun getMockParticipantBalances(trip: Trip): Map<String, Double> {
