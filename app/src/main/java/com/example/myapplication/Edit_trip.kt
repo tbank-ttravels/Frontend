@@ -6,20 +6,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -27,6 +26,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +76,9 @@ fun EditTripScreen(
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
+
+    fun formatForDisplay(millis: Long?): String =
+        millis?.let { displayFormatter.format(Date(it)) } ?: ""
 
     fun openDateTimePicker(currentMillis: Long?, onPicked: (Long) -> Unit) {
         val cal = Calendar.getInstance().apply {
@@ -197,30 +200,58 @@ fun EditTripScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                val dateFieldColors = TextFieldDefaults.colors(
+                    disabledTextColor = Color(0xFF333333),
+                    disabledIndicatorColor = Color.Gray,
+                    disabledLabelColor = Color(0xFF666666),
+                    disabledPlaceholderColor = Color(0xFF999999),
+                    disabledTrailingIconColor = Color(0xFF333333),
+                    disabledContainerColor = Color.Transparent
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openDateTimePicker(startDateMillis) { startDateMillis = it } }
                 ) {
                     OutlinedTextField(
-                        value = startDateMillis?.let { displayFormatter.format(Date(it)) } ?: "Выберите дату начала",
+                        value = formatForDisplay(startDateMillis).ifBlank { "Выберите дату и время начала" },
                         onValueChange = {},
                         readOnly = true,
-                        modifier = Modifier
-                            .width(150.dp)
-                            .clickable { openDateTimePicker(startDateMillis) { startDateMillis = it } },
+                        enabled = false,
                         label = { Text("Дата начала", fontWeight = FontWeight.ExtraBold) },
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.CalendarToday,
+                                contentDescription = "Выбрать дату начала"
+                            )
+                        },
+                        colors = dateFieldColors
                     )
+                }
 
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { openDateTimePicker(endDateMillis) { endDateMillis = it } }
+                ) {
                     OutlinedTextField(
-                        value = endDateMillis?.let { displayFormatter.format(Date(it)) } ?: "Выберите дату конца",
+                        value = formatForDisplay(endDateMillis).ifBlank { "Выберите дату и время конца" },
                         onValueChange = {},
                         readOnly = true,
-                        modifier = Modifier
-                            .width(150.dp)
-                            .clickable { openDateTimePicker(endDateMillis) { endDateMillis = it } },
+                        enabled = false,
                         label = { Text("Дата конца", fontWeight = FontWeight.ExtraBold) },
-                        shape = RoundedCornerShape(12.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.CalendarToday,
+                                contentDescription = "Выбрать дату конца"
+                            )
+                        },
+                        colors = dateFieldColors
                     )
                 }
 
@@ -231,11 +262,21 @@ fun EditTripScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
-                        if (tripName.isBlank()) {
-                            errorMessage = "Введите название"
-                            return@Button
-                        }
                         if (tripId == null || trip == null || isSubmitting) return@Button
+                        when {
+                            tripName.isBlank() -> {
+                                errorMessage = "Введите название"
+                                return@Button
+                            }
+                            startDateMillis == null -> {
+                                errorMessage = "Выберите дату и время начала"
+                                return@Button
+                            }
+                            endDateMillis != null && startDateMillis != null && endDateMillis!! < startDateMillis!! -> {
+                                errorMessage = "Дата конца должна быть позже даты начала"
+                                return@Button
+                            }
+                        }
                         isSubmitting = true
                         errorMessage = null
                         val req = EditTravelRequest(
