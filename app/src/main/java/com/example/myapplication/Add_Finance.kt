@@ -21,17 +21,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.LocalActivity
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -102,8 +102,6 @@ fun Add_Finance(
     }
 
     val totalExpenses = expenses.sumOf { it.amount }
-    val budget = trip.budget.toDoubleOrNull() ?: 0.0
-    val remainingBudget = budget - totalExpenses
 
     Scaffold(
         topBar = {
@@ -193,7 +191,6 @@ fun Add_Finance(
                 0 -> ExpensesTab(
                     expenses = expenses,
                     totalExpenses = totalExpenses,
-                    remainingBudget = remainingBudget,
                     trip = trip,
                     tripViewModel = tripViewModel,
                     categories = categories,
@@ -255,7 +252,6 @@ fun Add_Finance(
 fun ExpensesTab(
     expenses: List<Expense>,
     totalExpenses: Double,
-    remainingBudget: Double,
     trip: Trip,
     tripViewModel: TripViewModel,
     categories: List<ExpenseCategory>,
@@ -300,22 +296,7 @@ fun ExpensesTab(
                         )
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            text = "Остаток бюджета",
-                            fontSize = 14.sp,
-                            color = Color(0xFF666666),
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "${remainingBudget.toInt()} ₽",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (remainingBudget >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                 }
             }
         }
