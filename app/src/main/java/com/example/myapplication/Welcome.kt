@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
 
+
 @Composable
 fun Welcome(navController: NavController) {
     LaunchedEffect(Unit) {
