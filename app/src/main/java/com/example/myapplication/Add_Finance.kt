@@ -21,17 +21,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Hotel
-import androidx.compose.material.icons.filled.LocalActivity
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,6 +47,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +56,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.compose.ui.platform.LocalContext
+import com.example.core_data.model.CreateCategoryRequest
+import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 data class ExpenseCategory(
@@ -75,6 +74,9 @@ fun Add_Finance(
     tripViewModel: TripViewModel,
     navController: NavHostController
 ) {
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Расходы", "Переводы", "Категории")
     var showAddExpenseDialog by remember { mutableStateOf(false) }
@@ -82,6 +84,8 @@ fun Add_Finance(
     var expenses by remember { mutableStateOf(trip.expenses) }
     var categories by remember { mutableStateOf<List<ExpenseCategory>>(emptyList()) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var categoriesError by remember { mutableStateOf<String?>(null) }
+    var isCategoriesLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(trip.expenses) {
         expenses = trip.expenses
@@ -97,8 +101,24 @@ fun Add_Finance(
         }
     }
 
+    fun mapCategoryError(res: NetworkResult<*>, defaultMessage: String): String =
+        when (res) {
+            is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> "Проблемы с сетью"
+            is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+            else -> defaultMessage
+        }
+
     LaunchedEffect(trip.id) {
-        categories = getCategoriesForTrip(trip.id)
+        isCategoriesLoading = true
+        categoriesError = null
+        when (val res = backend.getCategories(trip.id.toLong())) {
+            is NetworkResult.Success -> {
+                categories = res.data.items.map { ExpenseCategory(id = it.id.toString(), name = it.name) }
+            }
+            else -> categoriesError = mapCategoryError(res, "Не удалось загрузить категории")
+        }
+        isCategoriesLoading = false
     }
 
     val totalExpenses = expenses.sumOf { it.amount }
@@ -231,15 +251,25 @@ fun Add_Finance(
 
                 2 -> CategoriesTab(
                     categories = categories,
+                    errorMessage = categoriesError,
+                    isLoading = isCategoriesLoading,
                     showAddCategoryDialog = showAddCategoryDialog,
                     onAddCategory = { category ->
-                        categories = categories + category
-                        saveCategoriesForTrip(trip.id, categories)
-                        showAddCategoryDialog = false
+                        if (isCategoriesLoading) return@CategoriesTab
+                        categoriesError = null
+                        scope.launch {
+                            when (val res = backend.createCategory(trip.id.toLong(), CreateCategoryRequest(category.name))) {
+                                is NetworkResult.Success -> {
+                                    val newCat = ExpenseCategory(id = res.data.id.toString(), name = res.data.name)
+                                    categories = categories + newCat
+                                    showAddCategoryDialog = false
+                                }
+                                else -> categoriesError = mapCategoryError(res, "Не удалось добавить категорию")
+                            }
+                        }
                     },
-                    onDeleteCategory = { category ->
-                        categories = categories.filter { it.id != category.id }
-                        saveCategoriesForTrip(trip.id, categories)
+                    onDeleteCategory = {
+                        categoriesError = "Удаление категорий пока не поддерживается"
                     },
                     onDismissDialog = { showAddCategoryDialog = false }
                 )
@@ -897,6 +927,8 @@ fun AddEditExpenseDialog(
 @Composable
 fun CategoriesTab(
     categories: List<ExpenseCategory>,
+    errorMessage: String?,
+    isLoading: Boolean,
     showAddCategoryDialog: Boolean,
     onAddCategory: (ExpenseCategory) -> Unit,
     onDeleteCategory: (ExpenseCategory) -> Unit,
@@ -905,6 +937,20 @@ fun CategoriesTab(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
+        if (isLoading) {
+            Text(
+                text = "Загружаем категории...",
+                modifier = Modifier.padding(16.dp),
+                color = Color.Gray
+            )
+        }
+        if (!errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = Color.Red
+            )
+        }
         if (categories.isEmpty()) {
             Column(
                 modifier = Modifier
@@ -1108,11 +1154,4 @@ fun AddCategoryDialog(
             }
         }
     )
-}
-
-private fun getCategoriesForTrip(tripId: String): List<ExpenseCategory> {
-    return emptyList()
-}
-
-private fun saveCategoriesForTrip(tripId: String, categories: List<ExpenseCategory>) {
 }
