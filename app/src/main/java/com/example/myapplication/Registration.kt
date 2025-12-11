@@ -62,7 +62,7 @@ fun Registration(
     LaunchedEffect(registrationState) {
         when(registrationState){
             is RegistrationState.Success -> {
-                userViewModel.updateUser(name, phone)
+                userViewModel.updateUser(name.trim(), surname.trim(), phone.trim())
                 delay(1000)
                 navController.navigate("profile") {
                     popUpTo("registration") { inclusive = true }

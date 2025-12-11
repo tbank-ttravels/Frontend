@@ -42,8 +42,7 @@ fun TravelApp() {
         composable("main") {
             MainScreen(
                 navController = navController,
-                tripViewModel = tripViewModel,
-                userViewModel = userViewModel
+                tripViewModel = tripViewModel
             )
         }
         composable("add_transfer/{tripId}") { backStackEntry ->

@@ -75,15 +75,12 @@ fun AuthScreen(
             }
             is AuthState.Success -> {
                 val profileResult = backend.getCurrentUser()
-                val profileName = if (profileResult is NetworkResult.Success) {
-                    val acc = profileResult.data
-                    listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "Пользователь" }
-                } else {
-                    "Пользователь"
-                }
+                val acc = (profileResult as? NetworkResult.Success)?.data
+                val profileName = listOfNotNull(acc?.name, acc?.surname).joinToString(" ").ifBlank { acc?.phone ?: "Пользователь" }
                 userViewModel.updateUser(
-                    name = profileName,
-                    phone = phone.trim()
+                    name = acc?.name.orEmpty(),
+                    surname = acc?.surname.orEmpty(),
+                    phone = acc?.phone.orEmpty().ifBlank { phone.trim() }
                 )
                 delay(500)
                 navController.navigate("profile") {

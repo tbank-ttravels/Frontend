@@ -7,7 +7,6 @@ import java.util.UUID
 data class TripInvitation(
     val id: String,
     val tripName: String,
-    val fromUserName: String,
     val date: String,
     val status: InvitationStatus
 )
@@ -42,11 +41,11 @@ enum class InvitationAction {
 
 data class Trip(
     val id: String = UUID.randomUUID().toString(),
-    val startTown: String,
-    val endTown: String,
+    val name: String,
+    val description: String? = null,
     val startDate: String,
-    val endDate: String,
-    val budget: String,
+    val endDate: String? = null,
+    val status: String? = null,
     val participants: List<User> = emptyList(),
     val expenses: List<Expense> = emptyList()
 )
@@ -54,7 +53,9 @@ data class Trip(
 data class User(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val phone: String
+    val phone: String,
+    val status: String? = null,
+    val role: String? = null
 )
 data class CategoryAnalytics(
     val categoryName: String,

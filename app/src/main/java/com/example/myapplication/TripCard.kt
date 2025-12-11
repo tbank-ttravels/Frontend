@@ -27,22 +27,31 @@ fun TripCard(trip: Trip, onClick: () -> Unit) {
             modifier = Modifier.padding(16.dp)
         ) {
             Text(
-                text = "${trip.startTown} ✈ ${trip.endTown}",
+                text = trip.name,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp,
                 color = Color(0xFF333333)
             )
+            trip.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                Text(
+                    text = desc,
+                    color = Color(0xFF666666),
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            val dateText = buildString {
+                append(trip.startDate)
+                if (!trip.endDate.isNullOrBlank()) {
+                    append(" - ")
+                    append(trip.endDate)
+                }
+            }
             Text(
-                text = "${trip.startDate} - ${trip.endDate}",
+                text = dateText,
                 color = Color(0xFF666666),
                 fontSize = 14.sp,
                 modifier = Modifier.padding(top = 4.dp)
-            )
-            Text(
-                text = "Бюджет: ${trip.budget}",
-                color = Color(0xFF666666),
-                fontSize = 14.sp,
-                modifier = Modifier.padding(top = 2.dp)
             )
             if (trip.participants.isNotEmpty()) {
                 Text(

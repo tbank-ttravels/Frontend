@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.Button
@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.core_data.model.ChangePasswordRequest
+import com.example.core_data.model.UpdateAccountRequest
 import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -56,7 +57,7 @@ fun EditProfileScreen(
     val scope = rememberCoroutineScope()
 
     var name by remember { mutableStateOf(userData.name) }
-    var surname by remember { mutableStateOf("") }
+    var surname by remember { mutableStateOf(userData.surname) }
     var phone by remember { mutableStateOf(userData.phone) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -71,7 +72,7 @@ fun EditProfileScreen(
             is NetworkResult.Success -> {
                 name = res.data.name.orEmpty()
                 surname = res.data.surname.orEmpty()
-                phone = res.data.phone.orEmpty()
+                phone = res.data.phone.orEmpty().ifBlank { userData.phone }
                 errorMessage = null
             }
             is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
@@ -108,7 +109,7 @@ fun EditProfileScreen(
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.ArrowBack,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Назад",
                     tint = Color(0xFF333333)
                 )
@@ -156,8 +157,6 @@ fun EditProfileScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     singleLine = true
-                    ,
-                    readOnly = true
                 )
 
                 OutlinedTextField(
@@ -173,10 +172,9 @@ fun EditProfileScreen(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    singleLine = true,
-                    readOnly = true
+                    singleLine = true
                 )
-
+                /*
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
@@ -193,6 +191,55 @@ fun EditProfileScreen(
                     singleLine = true,
                     readOnly = true
                 )
+                 */
+
+                Button(
+                    onClick = {
+                        errorMessage = null
+                        successMessage = null
+                        val namePayload = name.trim().takeIf { it.isNotBlank() }
+                        val surnamePayload = surname.trim().takeIf { it.isNotBlank() }
+                        if (namePayload == null && surnamePayload == null) {
+                            errorMessage = "Укажите имя или фамилию"
+                            return@Button
+                        }
+                        scope.launch {
+                            isLoading = true
+                            val req = UpdateAccountRequest(
+                                newName = namePayload,
+                                newSurname = surnamePayload
+                            )
+                            when (val res = BackendProvider.get(context).updateAccount(req)) {
+                                is NetworkResult.Success -> {
+                                    successMessage = "Данные обновлены"
+                                    userViewModel.updateUser(
+                                        name = res.data.name.orEmpty(),
+                                        surname = res.data.surname.orEmpty(),
+                                        phone = res.data.phone.orEmpty()
+                                    )
+                                    name = res.data.name.orEmpty()
+                                    surname = res.data.surname.orEmpty()
+                                }
+                                is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                else -> errorMessage = "Не удалось сохранить данные"
+                            }
+                            isLoading = false
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFDD2D),
+                        contentColor = Color(0xFF333333)
+                    ),
+                    enabled = !isLoading
+                ) {
+                    Text("Сохранить ФИО", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
 
@@ -324,7 +371,9 @@ fun EditProfileScreen(
                 containerColor = Color.White,
                 contentColor = Color(0xFF333333)
             ),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
+            border = ButtonDefaults.outlinedButtonBorder(
+                enabled = true
+            ).copy(
                 width = 1.dp
             )
         ) {

@@ -46,3 +46,9 @@ data class AccountResponse(
     val name: String? = null,
     val surname: String? = null
 )
+
+@Serializable
+data class UpdateAccountRequest(
+    val newName: String? = null,
+    val newSurname: String? = null
+)

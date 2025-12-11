@@ -10,6 +10,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 data class Transfer(
+    val id: String = UUID.randomUUID().toString(),
     val fromUserId: String,
     val toUserId: String,
     val amount: Double
@@ -20,6 +21,7 @@ class TripViewModel : ViewModel() {
     val trips: StateFlow<List<Trip>> = _trips
 
     private val _expenses = MutableStateFlow<Map<String, List<Expense>>>(emptyMap())
+    private val _transfers = MutableStateFlow<Map<String, List<Transfer>>>(emptyMap())
 
     private val _invitations = MutableStateFlow<List<TripInvitation>>(emptyList())
     val invitations: StateFlow<List<TripInvitation>> = _invitations
@@ -47,11 +49,10 @@ class TripViewModel : ViewModel() {
             val svetlanaId = UUID.randomUUID().toString()
 
             val testTrip = Trip(
-                startTown = "Москва",
-                endTown = "Санкт-Петербург",
+                name = "Москва - Санкт-Петербург",
+                description = "Выходные в Петербурге",
                 startDate = "15.01.2024",
                 endDate = "20.01.2024",
-                budget = "50000",
                 participants = listOf(
                     User(id = tatianaId, name = "Татьяна", phone = "+79856789090"),
                     User(id = igorId, name = "Игорь", phone = "89457899068"),
@@ -107,7 +108,7 @@ class TripViewModel : ViewModel() {
 
     fun addTrip(newTrip: Trip) {
         viewModelScope.launch {
-            println("Добавляем поездку: ${newTrip.startTown} -> ${newTrip.endTown}")
+            println("Добавляем поездку: ${newTrip.name}")
             _trips.value = _trips.value + newTrip
             println("Теперь поездок: ${_trips.value.size}")
         }
@@ -120,8 +121,7 @@ class TripViewModel : ViewModel() {
                 val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
                 val invitation = TripInvitation(
                     id = UUID.randomUUID().toString(),
-                    tripName = "${trip.startTown} → ${trip.endTown}",
-                    fromUserName = invitedBy,
+                    tripName = trip.name,
                     date = dateFormat.format(Date()),
                     status = InvitationStatus.PENDING
                 )
@@ -130,7 +130,7 @@ class TripViewModel : ViewModel() {
                 val notification = Notification(
                     id = UUID.randomUUID().toString(),
                     title = "Приглашение в поездку",
-                    message = "Вас приглашают в поездку ${trip.startTown} → ${trip.endTown} от $invitedBy",
+                    message = "Вас приглашают в поездку ${trip.name}",
                     date = dateFormat.format(Date()),
                     type = NotificationType.INVITATION,
                     isRead = false
@@ -193,6 +193,7 @@ class TripViewModel : ViewModel() {
         viewModelScope.launch {
             _trips.value = _trips.value.filter { it.id != tripId }
             _expenses.value = _expenses.value.filterKeys { it != tripId }
+            _transfers.value = _transfers.value.filterKeys { it != tripId }
         }
     }
 
@@ -287,12 +288,12 @@ class TripViewModel : ViewModel() {
 
     fun calculateTransfersForTrip(tripId: String): List<Transfer> {
         val trip = getTripById(tripId) ?: return emptyList()
-        return calculateTransfers(trip)
+        return getMockTransfers(trip)
     }
 
     fun calculateParticipantBalanceForTrip(userId: String, tripId: String): Double {
         val trip = getTripById(tripId) ?: return 0.0
-        return calculateParticipantBalance(userId, trip)
+        return getMockParticipantBalances(trip)[userId] ?: 0.0
     }
 
     fun markNotificationAsRead(notificationId: String) {
@@ -309,5 +310,131 @@ class TripViewModel : ViewModel() {
 
     fun getUnreadNotificationsCount(): Int {
         return _notifications.value.count { !it.isRead }
+    }
+    fun addTransfer(tripId: String, fromUserId: String, toUserId: String, amount: Double) {
+        viewModelScope.launch {
+            val transfer = Transfer(
+                fromUserId = fromUserId,
+                toUserId = toUserId,
+                amount = amount
+            )
+            val currentTransfers = _transfers.value[tripId] ?: emptyList()
+            _transfers.value = _transfers.value + (tripId to (currentTransfers + transfer))
+            println("Добавлен перевод в поездку $tripId: ${fromUserId} -> ${toUserId} ${amount}₽")
+        }
+    }
+
+    fun getTransfersForTrip(tripId: String): List<Transfer> {
+        return _transfers.value[tripId] ?: emptyList()
+    }
+
+    fun setParticipants(tripId: String, participants: List<User>) {
+        viewModelScope.launch {
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == tripId) trip.copy(participants = participants) else trip
+            }
+        }
+    }
+
+    fun upsertTrip(trip: Trip) {
+        viewModelScope.launch {
+            val existing = _trips.value.any { it.id == trip.id }
+            _trips.value = if (existing) {
+                _trips.value.map { if (it.id == trip.id) trip else it }
+            } else {
+                _trips.value + trip
+            }
+        }
+    }
+
+    fun replaceTrips(trips: List<Trip>) {
+        viewModelScope.launch {
+            _trips.value = trips
+            _expenses.value = emptyMap()
+        }
+    }
+
+    fun getMockParticipantBalances(trip: Trip): Map<String, Double> {
+        return if (trip.participants.size >= 2) {
+            val balances = mutableMapOf<String, Double>()
+            trip.participants.forEachIndexed { index, participant ->
+                when (index) {
+                    0 -> balances[participant.id] = 1500.0
+                    1 -> balances[participant.id] = -800.0
+                    2 -> if (trip.participants.size > 2) balances[participant.id] = -700.0
+                    else -> balances[participant.id] = 0.0
+                }
+            }
+            balances
+        } else {
+            emptyMap()
+        }
+    }
+
+    fun getMockTransfers(trip: Trip): List<Transfer> {
+        return if (trip.participants.size >= 2) {
+            val transfers = mutableListOf<Transfer>()
+
+            when (trip.participants.size) {
+                2 -> {
+                    if (trip.participants.size >= 2) {
+                        transfers.add(
+                            Transfer(
+                                fromUserId = trip.participants[1].id,
+                                toUserId = trip.participants[0].id,
+                                amount = 800.0
+                            )
+                        )
+                    }
+                }
+                else -> {
+                    if (trip.participants.size >= 3) {
+                        transfers.add(
+                            Transfer(
+                                fromUserId = trip.participants[1].id,
+                                toUserId = trip.participants[0].id,
+                                amount = 800.0
+                            )
+                        )
+                        transfers.add(
+                            Transfer(
+                                fromUserId = trip.participants[2].id,
+                                toUserId = trip.participants[0].id,
+                                amount = 700.0
+                            )
+                        )
+                    }
+                    if (trip.participants.size >= 4) {
+                        transfers.add(
+                            Transfer(
+                                fromUserId = trip.participants[3].id,
+                                toUserId = trip.participants[0].id,
+                                amount = 500.0
+                            )
+                        )
+                    }
+                }
+            }
+
+            transfers
+        } else {
+            emptyList()
+        }
+    }
+    fun deleteTransfer(tripId: String, fromUserId: String, toUserId: String, amount: Double) {
+        viewModelScope.launch {
+            val currentTransfers = _transfers.value[tripId] ?: emptyList()
+            val updatedTransfers = currentTransfers.filter { transfer ->
+                !(transfer.fromUserId == fromUserId &&
+                        transfer.toUserId == toUserId &&
+                        transfer.amount == amount)
+            }
+            _transfers.value = _transfers.value + (tripId to updatedTransfers)
+            println("Удален перевод из поездки $tripId: ${fromUserId} -> ${toUserId} ${amount}₽")
+        }
+    }
+    fun calculateParticipantBalances(tripId: String): Map<String, Double> {
+        val trip = getTripById(tripId) ?: return emptyMap()
+        return getMockParticipantBalances(trip)
     }
 }

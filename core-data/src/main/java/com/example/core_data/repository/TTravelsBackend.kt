@@ -11,6 +11,7 @@ import com.example.core_data.model.LogoutRequest
 import com.example.core_data.model.InviteRequest
 import com.example.core_data.model.CreateTravelRequest
 import com.example.core_data.model.EditTravelRequest
+import com.example.core_data.model.UpdateAccountRequest
 import com.example.core_data.model.CreateCategoryRequest
 import com.example.core_data.model.EditCategoryRequest
 import com.example.core_data.model.ExpenseRequestDTO
@@ -102,6 +103,9 @@ class TTravelsBackend(
 
     suspend fun getCurrentUser(): NetworkResult<AccountResponse> =
         safeApiCall(json) { api.getCurrentUser() }
+
+    suspend fun updateAccount(request: UpdateAccountRequest): NetworkResult<AccountResponse> =
+        safeApiCall(json) { api.updateAccount(request) }
 
     suspend fun getInvites(): NetworkResult<InvitesResponse> =
         safeApiCall(json) { api.getInvites() }

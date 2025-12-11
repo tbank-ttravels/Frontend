@@ -153,7 +153,7 @@ fun  ParticipantCardWithConfirmation(
                     )
                 }
                 else -> {
-                    if (!isCurrentUser && confirmationStatus != ConfirmationStatus.LEFT) {
+                    if (isTripCreator && !isCurrentUser && confirmationStatus != ConfirmationStatus.LEFT) {
                         IconButton(
                             onClick = onDeleteClick,
                             modifier = Modifier

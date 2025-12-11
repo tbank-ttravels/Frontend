@@ -35,8 +35,11 @@ fun SplashScreen(navController: NavController, userViewModel: UserViewModel) {
             when (val res = backend.getCurrentUser()) {
                 is NetworkResult.Success -> {
                     val acc = res.data
-                    val name = listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "" }
-                    userViewModel.updateUser(name = name, phone = acc.phone.orEmpty())
+                    userViewModel.updateUser(
+                        name = acc.name.orEmpty(),
+                        surname = acc.surname.orEmpty(),
+                        phone = acc.phone.orEmpty()
+                    )
                     navController.navigate("main") {
                         popUpTo("splash") { inclusive = true }
                     }

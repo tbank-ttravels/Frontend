@@ -14,6 +14,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
     data class UserData(
         val name: String = "",
+        val surname: String = "",
         val phone: String = "",
         val isLoggedIn: Boolean = false,
         val id: String = "",
@@ -25,24 +26,33 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     init {
         viewModelScope.launch {
             userPreferences.userName.collectLatest { name ->
-                userPreferences.userPhone.collectLatest { phone ->
-                    _userData.value = UserData(
-                        name = name,
-                        phone = phone,
-                        isLoggedIn = name.isNotEmpty() && phone.isNotEmpty()
-                    )
+                userPreferences.userSurname.collectLatest { surname ->
+                    userPreferences.userPhone.collectLatest { phone ->
+                        _userData.value = UserData(
+                            name = name,
+                            surname = surname,
+                            phone = phone,
+                            isLoggedIn = phone.isNotEmpty()
+                        )
+                    }
                 }
             }
         }
     }
 
-    fun updateUser(name: String, phone: String) {
+    fun updateUser(name: String, surname: String, phone: String) {
         viewModelScope.launch {
-            userPreferences.saveUser(name, phone)
+            val current = _userData.value
+            val nameToStore = if (name.isNotBlank()) name else current.name
+            val surnameToStore = if (surname.isNotBlank()) surname else current.surname
+            val phoneToStore = if (phone.isNotBlank()) phone else current.phone
+
+            userPreferences.saveUser(nameToStore, surnameToStore, phoneToStore)
             _userData.value = UserData(
-                name = name,
-                phone = phone,
-                isLoggedIn = true
+                name = nameToStore,
+                surname = surnameToStore,
+                phone = phoneToStore,
+                isLoggedIn = phoneToStore.isNotEmpty()
             )
         }
     }

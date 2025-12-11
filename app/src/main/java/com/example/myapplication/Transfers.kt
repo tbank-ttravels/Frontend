@@ -22,13 +22,14 @@ fun TransfersTab(
     tripViewModel: TripViewModel,
     navController: NavController
 ) {
-    var transfers by remember { mutableStateOf<List<Transfer>>(emptyList()) }
-    var participantBalances by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
-
-    LaunchedEffect(trip.expenses) {
-        participantBalances = getMockParticipantBalances(trip)
-        transfers = getMockTransfers(trip)
+    val transfers by remember(trip.id) {
+        derivedStateOf { tripViewModel.getTransfersForTrip(trip.id) }
     }
+
+    val participantBalances by remember(trip.id) {
+        derivedStateOf { tripViewModel.calculateParticipantBalances(trip.id) }
+    }
+
 
     Column(
         modifier = Modifier
@@ -207,9 +208,15 @@ fun TransfersTab(
                     ClickableTransferItem(
                         transfer = transfer,
                         trip = trip,
+                        tripViewModel = tripViewModel,
                         navController = navController,
                         onTransferCompleted = { completedTransfer ->
-                            transfers = transfers.filter { it != completedTransfer }
+                            tripViewModel.deleteTransfer(
+                                tripId = trip.id,
+                                fromUserId = completedTransfer.fromUserId,
+                                toUserId = completedTransfer.toUserId,
+                                amount = completedTransfer.amount
+                            )
                         }
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -283,7 +290,7 @@ fun BalanceCard(
                         }
 
                         Text(
-                            text = formatCurrency(balance),
+                            text = "${balance.toInt()} ₽",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -300,7 +307,8 @@ fun ClickableTransferItem(
     transfer: Transfer,
     trip: Trip,
     navController: NavController,
-    onTransferCompleted: (Transfer) -> Unit
+    onTransferCompleted: (Transfer) -> Unit,
+    tripViewModel: TripViewModel
 ) {
     var showTransferDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
@@ -373,7 +381,7 @@ fun ClickableTransferItem(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333)
@@ -427,7 +435,7 @@ fun ClickableTransferItem(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
@@ -514,7 +522,7 @@ fun ClickableTransferItem(
                         color = Color(0xFF666666)
                     )
                     Text(
-                        text = formatCurrency(transfer.amount),
+                        text = "${transfer.amount.toInt()} ₽",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
