@@ -1,275 +1,313 @@
 package com.example.myapplication
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
 import java.util.*
 
 data class Transfer(
     val fromUserId: String,
     val toUserId: String,
-    val amount: Double,
-    val id: String = UUID.randomUUID().toString()
+    val amount: Double
 )
 
 class TripViewModel : ViewModel() {
-
-    private val baseUrl = "https://your-backend.com/api"
-
     private val _trips = MutableStateFlow<List<Trip>>(emptyList())
     val trips: StateFlow<List<Trip>> = _trips
 
     private val _expenses = MutableStateFlow<Map<String, List<Expense>>>(emptyMap())
-    private val _transfers = MutableStateFlow<Map<String, List<Transfer>>>(emptyMap())
+
+    private val _invitations = MutableStateFlow<List<TripInvitation>>(emptyList())
+    val invitations: StateFlow<List<TripInvitation>> = _invitations
+
+    private val _notifications = MutableStateFlow<List<Notification>>(emptyList())
+    val notifications: StateFlow<List<Notification>> = _notifications
+
+    companion object {
+        val expenseCategories = listOf(
+            "Транспорт",
+            "Проживание",
+            "Еда",
+            "Развлечения",
+            "Покупки",
+            "Прочее"
+        )
+    }
 
     init {
-        loadTrips()
-    }
+        println("TripViewModel создан")
 
-    /** -------------------- Trips -------------------- **/
-    fun loadTrips() {
         viewModelScope.launch {
-            val loadedTrips = withContext(Dispatchers.IO) { fetchTripsNetwork() }
-            _trips.value = loadedTrips
-        }
-    }
+            val tatianaId = UUID.randomUUID().toString()
+            val igorId = UUID.randomUUID().toString()
+            val svetlanaId = UUID.randomUUID().toString()
 
-    private fun fetchTripsNetwork(): List<Trip> {
-        val trips = mutableListOf<Trip>()
-        try {
-            val url = URL("$baseUrl/travels")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Content-Type", "application/json")
-            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-                val jsonArray = JSONArray(response)
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    trips.add(
-                        Trip(
-                            id = obj.getString("id"),
-                            startTown = obj.getString("startTown"),
-                            endTown = obj.getString("endTown"),
-                            startDate = obj.getString("startDate"),
-                            endDate = obj.getString("endDate"),
-                            budget = obj.optString("budget", "0"),
-                            participants = emptyList(),
-                            expenses = emptyList()
+            val testTrip = Trip(
+                startTown = "Москва",
+                endTown = "Санкт-Петербург",
+                startDate = "15.01.2024",
+                endDate = "20.01.2024",
+                budget = "50000",
+                participants = listOf(
+                    User(id = tatianaId, name = "Татьяна", phone = "+79856789090"),
+                    User(id = igorId, name = "Игорь", phone = "89457899068"),
+                    User(id = svetlanaId, name = "Светлана", phone = "89324567890")
+                )
+            )
+            addTrip(testTrip)
+
+            delay(100)
+
+            val tripId = _trips.value.firstOrNull()?.id ?: ""
+            if (tripId.isNotEmpty()) {
+                val trip = getTripById(tripId)
+                trip?.participants?.let { participants ->
+                    if (participants.isNotEmpty()) {
+                        addExpense(
+                            tripId = tripId,
+                            expense = Expense(
+                                title = "Билеты на поезд",
+                                amount = 6000.0,
+                                category = "Транспорт",
+                                payerId = tatianaId,
+                                paidFor = "За всех участников"
+                            )
                         )
-                    )
+
+                        addExpense(
+                            tripId = tripId,
+                            expense = Expense(
+                                title = "Отель",
+                                amount = 15000.0,
+                                category = "Проживание",
+                                payerId = igorId,
+                                paidFor = "За всех участников"
+                            )
+                        )
+
+                        addExpense(
+                            tripId = tripId,
+                            expense = Expense(
+                                title = "Ужин в ресторане",
+                                amount = 5000.0,
+                                category = "Еда",
+                                payerId = svetlanaId,
+                                paidFor = "За: Татьяна"
+                            )
+                        )
+                    }
                 }
             }
-            connection.disconnect()
-        } catch (e: Exception) {
-            Log.e("Network", "Error fetching trips: ${e.localizedMessage}")
         }
-        return trips
+    }
+
+    fun addTrip(newTrip: Trip) {
+        viewModelScope.launch {
+            println("Добавляем поездку: ${newTrip.startTown} -> ${newTrip.endTown}")
+            _trips.value = _trips.value + newTrip
+            println("Теперь поездок: ${_trips.value.size}")
+        }
+    }
+
+    fun sendInvitation(tripId: String, userId: String, invitedBy: String) {
+        viewModelScope.launch {
+            val trip = getTripById(tripId)
+            if (trip != null) {
+                val dateFormat = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault())
+                val invitation = TripInvitation(
+                    id = UUID.randomUUID().toString(),
+                    tripName = "${trip.startTown} → ${trip.endTown}",
+                    fromUserName = invitedBy,
+                    date = dateFormat.format(Date()),
+                    status = InvitationStatus.PENDING
+                )
+                _invitations.value = _invitations.value + invitation
+
+                val notification = Notification(
+                    id = UUID.randomUUID().toString(),
+                    title = "Приглашение в поездку",
+                    message = "Вас приглашают в поездку ${trip.startTown} → ${trip.endTown} от $invitedBy",
+                    date = dateFormat.format(Date()),
+                    type = NotificationType.INVITATION,
+                    isRead = false
+                )
+                _notifications.value = _notifications.value + notification
+
+                println("Отправлено приглашение пользователю $userId в поездку $tripId")
+            }
+        }
+    }
+
+    fun confirmParticipation(tripId: String, userId: String) {
+        viewModelScope.launch {
+            println("Пользователь $userId подтвердил участие в поездке $tripId")
+        }
+    }
+
+    fun rejectInvitation(tripId: String, userId: String) {
+        viewModelScope.launch {
+            println("Пользователь $userId отклонил приглашение в поездку $tripId")
+        }
+    }
+
+    fun getInvitationById(invitationId: String): TripInvitation? {
+        return _invitations.value.find { it.id == invitationId }
+    }
+
+    fun acceptInvitation(invitationId: String) {
+        viewModelScope.launch {
+            _invitations.value = _invitations.value.map { invitation ->
+                if (invitation.id == invitationId) {
+                    invitation.copy(status = InvitationStatus.ACCEPTED)
+                } else {
+                    invitation
+                }
+            }
+        }
+    }
+
+    fun rejectInvitationById(invitationId: String) {
+        viewModelScope.launch {
+            _invitations.value = _invitations.value.map { invitation ->
+                if (invitation.id == invitationId) {
+                    invitation.copy(status = InvitationStatus.REJECTED)
+                } else {
+                    invitation
+                }
+            }
+        }
     }
 
     fun getTripById(tripId: String): Trip? {
-        return _trips.value.find { it.id == tripId }?.copy(
+        val trip = _trips.value.find { it.id == tripId }
+        return trip?.copy(
             expenses = _expenses.value[tripId] ?: emptyList()
         )
     }
 
-    fun addTrip(trip: Trip) {
-        viewModelScope.launch {
-            val createdTrip = withContext(Dispatchers.IO) { createTripNetwork(trip) }
-            createdTrip?.let { _trips.value = _trips.value + it }
-        }
-    }
-
-    private fun createTripNetwork(trip: Trip): Trip? {
-        return try {
-            val url = URL("$baseUrl/travels")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            val json = JSONObject().apply {
-                put("startTown", trip.startTown)
-                put("endTown", trip.endTown)
-                put("startDate", trip.startDate)
-                put("endDate", trip.endDate)
-                put("budget", trip.budget)
-            }
-            OutputStreamWriter(connection.outputStream).use { it.write(json.toString()) }
-            if (connection.responseCode == HttpURLConnection.HTTP_CREATED || connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-                val obj = JSONObject(response)
-                Trip(
-                    id = obj.getString("id"),
-                    startTown = obj.getString("startTown"),
-                    endTown = obj.getString("endTown"),
-                    startDate = obj.getString("startDate"),
-                    endDate = obj.getString("endDate"),
-                    budget = obj.optString("budget", "0"),
-                    participants = emptyList(),
-                    expenses = emptyList()
-                )
-            } else null
-        } catch (e: Exception) {
-            Log.e("Network", "Error creating trip: ${e.localizedMessage}")
-            null
-        }
-    }
-
-    fun updateTrip(trip: Trip) {
-        viewModelScope.launch {
-            val success = withContext(Dispatchers.IO) { updateTripNetwork(trip) }
-            if (success) _trips.value = _trips.value.map { if (it.id == trip.id) trip else it }
-        }
-    }
-
-    private fun updateTripNetwork(trip: Trip): Boolean {
-        return try {
-            val url = URL("$baseUrl/travels/${trip.id}")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "PUT"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            val json = JSONObject().apply {
-                put("startTown", trip.startTown)
-                put("endTown", trip.endTown)
-                put("startDate", trip.startDate)
-                put("endDate", trip.endDate)
-                put("budget", trip.budget)
-            }
-            OutputStreamWriter(connection.outputStream).use { it.write(json.toString()) }
-            val success = connection.responseCode == HttpURLConnection.HTTP_OK
-            connection.disconnect()
-            success
-        } catch (e: Exception) {
-            Log.e("Network", "Error updating trip: ${e.localizedMessage}")
-            false
-        }
-    }
-
     fun deleteTrip(tripId: String) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { deleteTripNetwork(tripId) }
             _trips.value = _trips.value.filter { it.id != tripId }
             _expenses.value = _expenses.value.filterKeys { it != tripId }
-            _transfers.value = _transfers.value.filterKeys { it != tripId }
         }
     }
 
-    private fun deleteTripNetwork(tripId: String) {
-        try {
-            val url = URL("$baseUrl/travels/$tripId")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "DELETE"
-            connection.responseCode
-            connection.disconnect()
-        } catch (e: Exception) {
-            Log.e("Network", "Error deleting trip: ${e.localizedMessage}")
+    fun updateTrip(updatedTrip: Trip) {
+        viewModelScope.launch {
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == updatedTrip.id) updatedTrip else trip
+            }
         }
     }
 
-    /** -------------------- Expenses -------------------- **/
     fun addExpense(tripId: String, expense: Expense) {
         viewModelScope.launch {
-            val addedExpense = withContext(Dispatchers.IO) { addExpenseNetwork(tripId, expense) }
-            addedExpense?.let {
-                val current = _expenses.value[tripId] ?: emptyList()
-                _expenses.value = _expenses.value + (tripId to (current + it))
-            }
+            val currentExpenses = _expenses.value[tripId] ?: emptyList()
+            _expenses.value = _expenses.value + (tripId to (currentExpenses + expense))
+            println("Добавлен расход для поездки $tripId: ${expense.title}")
         }
     }
 
-    private fun addExpenseNetwork(tripId: String, expense: Expense): Expense? {
-        return try {
-            val url = URL("$baseUrl/travels/$tripId/expenses")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            val json = JSONObject().apply {
-                put("title", expense.title)
-                put("amount", expense.amount)
-                put("category", expense.category)
-                put("payerId", expense.payerId)
-            }
-            OutputStreamWriter(connection.outputStream).use { it.write(json.toString()) }
-            if (connection.responseCode == HttpURLConnection.HTTP_CREATED || connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-                val obj = JSONObject(response)
-                Expense(
-                    id = obj.getString("id"),
-                    title = obj.getString("title"),
-                    amount = obj.getDouble("amount"),
-                    category = obj.getString("category"),
-                    payerId = obj.getString("payerId"),
-                    paidFor = ""
-                )
-            } else null
-        } catch (e: Exception) {
-            Log.e("Network", "Error adding expense: ${e.localizedMessage}")
-            null
-        }
-    }
-
-    /** -------------------- Transfers -------------------- **/
-    fun addTransfer(tripId: String, transfer: Transfer) {
+    fun updateExpense(tripId: String, expense: Expense) {
         viewModelScope.launch {
-            val addedTransfer = withContext(Dispatchers.IO) { addTransferNetwork(tripId, transfer) }
-            addedTransfer?.let {
-                val current = _transfers.value[tripId] ?: emptyList()
-                _transfers.value = _transfers.value + (tripId to (current + it))
+            val currentExpenses = _expenses.value[tripId] ?: emptyList()
+            val updatedExpenses = currentExpenses.map {
+                if (it.id == expense.id) expense else it
+            }
+            _expenses.value = _expenses.value + (tripId to updatedExpenses)
+            println("Обновлен расход для поездки $tripId: ${expense.title}")
+        }
+    }
+
+    fun deleteExpense(tripId: String, expenseId: String) {
+        viewModelScope.launch {
+            val currentExpenses = _expenses.value[tripId] ?: emptyList()
+            val updatedExpenses = currentExpenses.filter { it.id != expenseId }
+            _expenses.value = _expenses.value + (tripId to updatedExpenses)
+            println("Удален расход $expenseId из поездки $tripId")
+        }
+    }
+
+    fun getExpensesForTrip(tripId: String): List<Expense> {
+        return _expenses.value[tripId] ?: emptyList()
+    }
+
+    fun updateTripExpenses(tripId: String, expenses: List<Expense>) {
+        viewModelScope.launch {
+            _expenses.value = _expenses.value + (tripId to expenses)
+            println("Обновлены все расходы для поездки $tripId: ${expenses.size} расходов")
+        }
+    }
+
+    fun addParticipantToTrip(tripId: String, user: User) {
+        viewModelScope.launch {
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == tripId) {
+                    val userWithId = if (user.id.isEmpty()) {
+                        user.copy(id = UUID.randomUUID().toString())
+                    } else {
+                        user
+                    }
+                    val updatedParticipants = trip.participants.toMutableList().apply {
+                        add(userWithId)
+                    }
+                    trip.copy(participants = updatedParticipants)
+                } else {
+                    trip
+                }
             }
         }
     }
 
-    private fun addTransferNetwork(tripId: String, transfer: Transfer): Transfer? {
-        return try {
-            val url = URL("$baseUrl/travels/$tripId/transfers")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            val json = JSONObject().apply {
-                put("fromUserId", transfer.fromUserId)
-                put("toUserId", transfer.toUserId)
-                put("amount", transfer.amount)
+    fun removeParticipantFromTrip(tripId: String, userId: String) {
+        viewModelScope.launch {
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == tripId) {
+                    val updatedParticipants = trip.participants.filter { it.id != userId }
+                    trip.copy(participants = updatedParticipants)
+                } else {
+                    trip
+                }
             }
-            OutputStreamWriter(connection.outputStream).use { it.write(json.toString()) }
-            if (connection.responseCode == HttpURLConnection.HTTP_CREATED || connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use(BufferedReader::readText)
-                val obj = JSONObject(response)
-                Transfer(
-                    id = obj.getString("id"),
-                    fromUserId = obj.getString("fromUserId"),
-                    toUserId = obj.getString("toUserId"),
-                    amount = obj.getDouble("amount")
-                )
-            } else null
-        } catch (e: Exception) {
-            Log.e("Network", "Error adding transfer: ${e.localizedMessage}")
-            null
         }
     }
 
-    fun getTransfers(tripId: String): List<Transfer> = _transfers.value[tripId] ?: emptyList()
+    fun getUserById(userId: String, tripId: String): User? {
+        val trip = getTripById(tripId)
+        return trip?.participants?.find { it.id == userId }
+    }
 
-    fun calculateParticipantBalance(userId: String, tripId: String): Double {
-        val expenses = _expenses.value[tripId] ?: emptyList()
-        val transfers = _transfers.value[tripId] ?: emptyList()
-        val paid = expenses.filter { it.payerId == userId }.sumOf { it.amount }
-        val owes = expenses.sumOf { it.amount / (getTripById(tripId)?.participants?.size ?: 1) }
-        val received = transfers.filter { it.toUserId == userId }.sumOf { it.amount }
-        val sent = transfers.filter { it.fromUserId == userId }.sumOf { it.amount }
-        return paid + received - owes - sent
+    fun getPayerName(tripId: String, payerId: String): String {
+        return getUserById(payerId, tripId)?.name ?: "Неизвестный"
+    }
+
+    fun calculateTransfersForTrip(tripId: String): List<Transfer> {
+        val trip = getTripById(tripId) ?: return emptyList()
+        return calculateTransfers(trip)
+    }
+
+    fun calculateParticipantBalanceForTrip(userId: String, tripId: String): Double {
+        val trip = getTripById(tripId) ?: return 0.0
+        return calculateParticipantBalance(userId, trip)
+    }
+
+    fun markNotificationAsRead(notificationId: String) {
+        viewModelScope.launch {
+            _notifications.value = _notifications.value.map { notification ->
+                if (notification.id == notificationId) {
+                    notification.copy(isRead = true)
+                } else {
+                    notification
+                }
+            }
+        }
+    }
+
+    fun getUnreadNotificationsCount(): Int {
+        return _notifications.value.count { !it.isRead }
     }
 }
