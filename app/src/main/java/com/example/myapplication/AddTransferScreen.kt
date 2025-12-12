@@ -1,6 +1,8 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -35,6 +37,8 @@ fun AddTransferScreen(
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
+    
+    val scrollState = rememberScrollState()
 
     fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
         when (res) {
@@ -69,6 +73,7 @@ fun AddTransferScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text(
@@ -273,5 +278,7 @@ fun AddTransferScreen(
                 Text(if (isSaving) "Сохранение..." else "Добавить")
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
