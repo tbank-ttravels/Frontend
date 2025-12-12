@@ -1,4 +1,5 @@
 package com.example.myapplication
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +21,7 @@ fun ReportTab(trip: Trip) {
     var tripStatus by remember { mutableStateOf("Активна") }
     var showStatusDialog by remember { mutableStateOf(false) }
     val statusOptions = listOf("Активна", "Остановлена")
+    val totalExpenses = trip.expenses.sumOf { it.amount }
 
     Column(
         modifier = Modifier
@@ -49,32 +51,13 @@ fun ReportTab(trip: Trip) {
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                InfoRow(
-                    icon = Icons.Filled.Place,
-                    title = "Маршрут",
-                    value = "${trip.startTown} - ${trip.endTown}"
-                )
-
-
-                InfoRow(
-                    icon = Icons.Filled.DateRange,
-                    title = "Продолжительность",
-                    value = "${trip.startDate} - ${trip.endDate}"
-                )
 
                 InfoRow(
                     icon = Icons.Filled.Group,
                     title = "Количество участников",
-                    value = trip.participants.size.toString()
+                    value = "${trip.participants.size} чел."
                 )
 
-                InfoRow(
-                    icon = Icons.Filled.AttachMoney,
-                    title = "Бюджет",
-                    value = trip.budget
-                )
-
-                val totalExpenses = trip.expenses.sumOf { it.amount }
                 InfoRow(
                     icon = Icons.Filled.Money,
                     title = "Общие расходы",
@@ -146,6 +129,7 @@ fun ReportTab(trip: Trip) {
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
 
         Button(
             onClick = { showStatusDialog = true },
