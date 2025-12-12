@@ -13,6 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.core_data.model.CreateTransferRequest
+import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddTransferScreen(
@@ -21,13 +26,33 @@ fun AddTransferScreen(
     tripViewModel: TripViewModel
 ) {
     var trip by remember { mutableStateOf<Trip?>(null) }
-    var fromPhone by remember { mutableStateOf("") }
-    var toPhone by remember { mutableStateOf("") }
+    var fromUserId by remember { mutableStateOf("") }
+    var toUserId by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
+
+    fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
+        when (res) {
+            is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> "Проблемы с сетью"
+            is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+            else -> defaultMessage
+        }
 
     LaunchedEffect(tripId) {
         if (tripId != null) {
             trip = tripViewModel.getTripById(tripId)
+            trip?.participants?.firstOrNull()?.let {
+                fromUserId = it.id
+            }
+            trip?.participants?.getOrNull(1)?.let {
+                toUserId = it.id
+            }
         }
     }
 
@@ -68,14 +93,15 @@ fun AddTransferScreen(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
+
                 trip?.participants?.forEach { participant ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (fromPhone == participant.phone) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
+                            containerColor = if (fromUserId == participant.id) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
                         ),
-                        onClick = { fromPhone = participant.phone }
+                        onClick = { fromUserId = participant.id }
                     ) {
                         Row(
                             modifier = Modifier
@@ -86,7 +112,7 @@ fun AddTransferScreen(
                             Icon(
                                 imageVector = Icons.Filled.Person,
                                 contentDescription = "Участник",
-                                tint = Color(0xFF2196F3),
+                                tint = Color(0xFFF44336),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -95,33 +121,35 @@ fun AddTransferScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                            if (fromPhone == participant.phone) {
+                            if (fromUserId == participant.id) {
                                 Spacer(modifier = Modifier.weight(1f))
                                 Icon(
                                     imageVector = Icons.Filled.Check,
                                     contentDescription = "Выбрано",
-                                    tint = Color(0xFF2196F3)
+                                    tint = Color(0xFFFFF292)
                                 )
                             }
                         }
                     }
                 }
 
-                // Кому
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
                     text = "Кому:",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
+
                 trip?.participants?.forEach { participant ->
-                    if (participant.phone != fromPhone) {
+                    if (participant.id != fromUserId) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (toPhone == participant.phone) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
+                                containerColor = if (toUserId == participant.id) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
                             ),
-                            onClick = { toPhone = participant.phone }
+                            onClick = { toUserId = participant.id }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -141,7 +169,7 @@ fun AddTransferScreen(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium
                                 )
-                                if (toPhone == participant.phone) {
+                                if (toUserId == participant.id) {
                                     Spacer(modifier = Modifier.weight(1f))
                                     Icon(
                                         imageVector = Icons.Filled.Check,
@@ -158,11 +186,7 @@ fun AddTransferScreen(
 
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { newValue ->
-                        if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
-                            amount = newValue
-                        }
-                    },
+                    onValueChange = { amount = it },
                     label = { Text("Сумма перевода") },
                     placeholder = { Text("Введите сумму") },
                     modifier = Modifier.fillMaxWidth(),
@@ -172,6 +196,15 @@ fun AddTransferScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.Red,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -191,15 +224,42 @@ fun AddTransferScreen(
 
             Button(
                 onClick = {
-                    if (fromPhone.isNotEmpty() && toPhone.isNotEmpty() && amount.isNotEmpty()) {
+                    if (tripId == null) return@Button
+                    if (fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()) {
                         val amountValue = amount.toDoubleOrNull() ?: 0.0
-                        tripViewModel.addTransferByPhone(
-                            tripId = tripId ?: "",
-                            fromPhone = fromPhone,
-                            toPhone = toPhone,
-                            amount = amountValue
-                        )
-                        navController.navigateUp()
+                        scope.launch {
+                            isSaving = true
+                            errorMessage = null
+                            val sender = fromUserId.toLongOrNull()
+                            val recipient = toUserId.toLongOrNull()
+                            if (sender == null || recipient == null) {
+                                errorMessage = "Не удалось определить участников перевода"
+                                isSaving = false
+                                return@launch
+                            }
+                            when (val res = backend.createTransfer(
+                                tripId.toLong(),
+                                CreateTransferRequest(
+                                    senderId = sender,
+                                    recipientId = recipient,
+                                    sum = amountValue
+                                )
+                            )) {
+                                is NetworkResult.Success -> {
+                                    val mapped = Transfer(
+                                        id = res.data.id.toString(),
+                                        fromUserId = res.data.senderId.toString(),
+                                        toUserId = res.data.recipientId.toString(),
+                                        amount = res.data.sum
+                                    )
+                                    val updated = tripViewModel.getTransfersForTrip(tripId) + mapped
+                                    tripViewModel.setTransfers(tripId, updated)
+                                    navController.navigateUp()
+                                }
+                                else -> errorMessage = mapError(res, "Не удалось создать перевод")
+                            }
+                            isSaving = false
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f),
@@ -208,9 +268,9 @@ fun AddTransferScreen(
                     containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
                 ),
-                enabled = fromPhone.isNotEmpty() && toPhone.isNotEmpty() && amount.isNotEmpty()
+                enabled = fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty() && !isSaving
             ) {
-                Text("Добавить")
+                Text(if (isSaving) "Сохранение..." else "Добавить")
             }
         }
     }
