@@ -69,7 +69,10 @@ data class Expense(
     val title: String,
     val amount: Double,
     val category: String,
+    val categoryId: String? = null,
     val payerId: String,
-    val paidFor: String = "Только себя",
+    val paidFor: String = "Выбранные участники",
+    val paidForIds: List<String> = emptyList(),
+    val recipientAmounts: Map<String, Double> = emptyMap(),
     val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
 )

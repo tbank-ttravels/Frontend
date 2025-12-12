@@ -5,49 +5,54 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.core_data.model.CategoryAnalyticsResponseDTO
+import com.example.core_data.model.TravelExpenseAnalyticsDTO
+import com.example.core_data.network.NetworkResult
 
 @Composable
 fun AnalyticsTab(trip: Trip) {
-    val totalExpenses = 26000.0
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
 
-    val categoryAnalytics = listOf(
-        CategoryAnalytics(
-            categoryName = "Проживание",
-            totalAmount = 150000.0,
-            percentage = 45.3,
-            expenseCount = 1,
-            participantSpending = mapOf(
-                "Игорь" to 150000.0
-            )
-        ),
-        CategoryAnalytics(
-            categoryName = "Транспорт",
-            totalAmount = 6000.0,
-            percentage = 32.1,
-            expenseCount = 1,
-            participantSpending = mapOf(
-                "Татьяна" to 6000.0
-            )
-        ),
-        CategoryAnalytics(
-            categoryName = "Еда",
-            totalAmount = 5000.0,
-            percentage = 22.6,
-            expenseCount = 1,
-            participantSpending = mapOf(
-                "Светлана" to 5000.0
-            )
-        )
-    )
+    var analytics by remember { mutableStateOf<TravelExpenseAnalyticsDTO?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(trip.id) {
+        isLoading = true
+        errorMessage = null
+        when (val res = backend.getExpenseReport(trip.id.toLong())) {
+            is NetworkResult.Success -> analytics = res.data
+            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+            else -> errorMessage = "Не удалось загрузить аналитику"
+        }
+        isLoading = false
+    }
+
+    val totalExpenses = analytics?.totalAmount ?: 0.0
+    val categories = analytics?.categories.orEmpty()
 
     Column(
         modifier = Modifier
@@ -100,12 +105,12 @@ fun AnalyticsTab(trip: Trip) {
                         horizontalAlignment = Alignment.End
                     ) {
                         Text(
-                            text = "Количество трат",
+                            text = "Количество категорий",
                             fontSize = 14.sp,
                             color = Color(0xFF666666)
                         )
                         Text(
-                            text = "3",
+                            text = categories.size.toString(),
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF2196F3)
@@ -117,21 +122,52 @@ fun AnalyticsTab(trip: Trip) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Анализ по категориям",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF333333)
-        )
+        when {
+            isLoading -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Загружаем данные...")
+                }
+            }
+            errorMessage != null -> {
+                Text(
+                    text = errorMessage.orEmpty(),
+                    color = Color.Red,
+                    fontSize = 14.sp
+                )
+            }
+            categories.isEmpty() -> {
+                Text(
+                    text = "Нет данных по расходам",
+                    color = Color(0xFF666666),
+                    fontSize = 14.sp
+                )
+            }
+            else -> {
+                Text(
+                    text = "Анализ по категориям",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF333333)
+                )
 
-        Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            categoryAnalytics.forEach { category ->
-                CategoryAnalyticsCard(category, totalExpenses)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    categories.forEach { category ->
+                        CategoryAnalyticsCard(category, totalExpenses)
+                    }
+                }
             }
         }
     }
@@ -139,7 +175,7 @@ fun AnalyticsTab(trip: Trip) {
 
 @Composable
 fun CategoryAnalyticsCard(
-    category: CategoryAnalytics,
+    category: CategoryAnalyticsResponseDTO,
     totalExpenses: Double
 ) {
     Card(
@@ -162,13 +198,13 @@ fun CategoryAnalyticsCard(
             ) {
                 Column {
                     Text(
-                        text = category.categoryName,
+                        text = category.name,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF333333)
                     )
                     Text(
-                        text = "${category.expenseCount} трат",
+                        text = "${category.expenseCount ?: 0} трат",
                         fontSize = 12.sp,
                         color = Color(0xFF666666),
                         modifier = Modifier.padding(top = 2.dp)
@@ -176,7 +212,7 @@ fun CategoryAnalyticsCard(
                 }
 
                 Text(
-                    text = "${category.totalAmount.toInt()} ₽",
+                    text = "${(category.totalAmount ?: 0.0).toInt()} ₽",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF2196F3)
@@ -185,8 +221,10 @@ fun CategoryAnalyticsCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val percent = category.percentageOfTotal
+                ?: if (totalExpenses > 0) ((category.totalAmount ?: 0.0) / totalExpenses * 100) else 0.0
             LinearProgressIndicator(
-                progress = (category.percentage / 100).toFloat(),
+                progress = (percent / 100).toFloat().coerceIn(0f, 1f),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp),
@@ -197,12 +235,12 @@ fun CategoryAnalyticsCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "${category.percentage.toInt()}% от общих расходов",
+                text = "${percent.toInt()}% от общих расходов",
                 fontSize = 12.sp,
                 color = Color(0xFF666666)
             )
 
-            if (category.participantSpending.isNotEmpty()) {
+            if (category.participants.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
@@ -213,11 +251,12 @@ fun CategoryAnalyticsCard(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                category.participantSpending.forEach { (participantId, amount) ->
+                category.participants.forEach { p ->
+                    val fullName = listOfNotNull(p.name, p.surname).joinToString(" ").ifBlank { "Участник" }
                     ParticipantSpendingRow(
-                        participantId = participantId,
-                        amount = amount,
-                        totalInCategory = category.totalAmount
+                        participantName = fullName,
+                        amount = p.expenseAmount ?: 0.0,
+                        totalInCategory = category.totalAmount ?: 0.0
                     )
                 }
             }
@@ -227,7 +266,7 @@ fun CategoryAnalyticsCard(
 
 @Composable
 fun ParticipantSpendingRow(
-    participantId: String,
+    participantName: String,
     amount: Double,
     totalInCategory: Double
 ) {
@@ -251,7 +290,7 @@ fun ParticipantSpendingRow(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = participantId,
+                text = participantName,
                 fontSize = 14.sp,
                 color = Color(0xFF333333)
             )

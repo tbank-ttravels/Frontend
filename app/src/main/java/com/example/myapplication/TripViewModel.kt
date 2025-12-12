@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -38,72 +37,6 @@ class TripViewModel : ViewModel() {
             "Покупки",
             "Прочее"
         )
-    }
-
-    init {
-        println("TripViewModel создан")
-
-        viewModelScope.launch {
-            val tatianaId = UUID.randomUUID().toString()
-            val igorId = UUID.randomUUID().toString()
-            val svetlanaId = UUID.randomUUID().toString()
-
-            val testTrip = Trip(
-                name = "Москва - Санкт-Петербург",
-                description = "Выходные в Петербурге",
-                startDate = "15.01.2024",
-                endDate = "20.01.2024",
-                participants = listOf(
-                    User(id = tatianaId, name = "Татьяна", phone = "+79856789090"),
-                    User(id = igorId, name = "Игорь", phone = "89457899068"),
-                    User(id = svetlanaId, name = "Светлана", phone = "89324567890")
-                )
-            )
-            addTrip(testTrip)
-
-            delay(100)
-
-            val tripId = _trips.value.firstOrNull()?.id ?: ""
-            if (tripId.isNotEmpty()) {
-                val trip = getTripById(tripId)
-                trip?.participants?.let { participants ->
-                    if (participants.isNotEmpty()) {
-                        addExpense(
-                            tripId = tripId,
-                            expense = Expense(
-                                title = "Билеты на поезд",
-                                amount = 6000.0,
-                                category = "Транспорт",
-                                payerId = tatianaId,
-                                paidFor = "За всех участников"
-                            )
-                        )
-
-                        addExpense(
-                            tripId = tripId,
-                            expense = Expense(
-                                title = "Отель",
-                                amount = 15000.0,
-                                category = "Проживание",
-                                payerId = igorId,
-                                paidFor = "За всех участников"
-                            )
-                        )
-
-                        addExpense(
-                            tripId = tripId,
-                            expense = Expense(
-                                title = "Ужин в ресторане",
-                                amount = 5000.0,
-                                category = "Еда",
-                                payerId = svetlanaId,
-                                paidFor = "За: Татьяна"
-                            )
-                        )
-                    }
-                }
-            }
-        }
     }
 
     fun addTrip(newTrip: Trip) {
@@ -240,7 +173,9 @@ class TripViewModel : ViewModel() {
     fun updateTripExpenses(tripId: String, expenses: List<Expense>) {
         viewModelScope.launch {
             _expenses.value = _expenses.value + (tripId to expenses)
-            println("Обновлены все расходы для поездки $tripId: ${expenses.size} расходов")
+            _trips.value = _trips.value.map { trip ->
+                if (trip.id == tripId) trip.copy(expenses = expenses) else trip
+            }
         }
     }
 
@@ -326,6 +261,12 @@ class TripViewModel : ViewModel() {
 
     fun getTransfersForTrip(tripId: String): List<Transfer> {
         return _transfers.value[tripId] ?: emptyList()
+    }
+
+    fun setTransfers(tripId: String, transfers: List<Transfer>) {
+        viewModelScope.launch {
+            _transfers.value = _transfers.value + (tripId to transfers)
+        }
     }
 
     fun setParticipants(tripId: String, participants: List<User>) {
@@ -433,28 +374,4 @@ class TripViewModel : ViewModel() {
             println("Удален перевод из поездки $tripId: ${fromUserId} -> ${toUserId} ${amount}₽")
         }
     }
-    fun calculateParticipantBalances(tripId: String): Map<String, Double> {
-        val trip = getTripById(tripId) ?: return emptyMap()
-        return getMockParticipantBalances(trip)
-    }
-    fun addTransferByPhone(tripId: String, fromPhone: String, toPhone: String, amount: Double) {
-        viewModelScope.launch {
-            val trip = getTripById(tripId) ?: return@launch
-
-            val fromUser = trip.participants.find { it.phone == fromPhone } ?: return@launch
-            val toUser = trip.participants.find { it.phone == toPhone } ?: return@launch
-
-            val transfer = Transfer(
-                fromUserId = fromUser.id,
-                toUserId = toUser.id,
-                amount = amount
-            )
-
-            val currentTransfers = _transfers.value[tripId] ?: emptyList()
-            _transfers.value = _transfers.value + (tripId to (currentTransfers + transfer))
-
-            println("Добавлен перевод по телефону в поездку $tripId: ${fromUser.name} -> ${toUser.name} ${amount}₽")
-        }
-    }
-
 }

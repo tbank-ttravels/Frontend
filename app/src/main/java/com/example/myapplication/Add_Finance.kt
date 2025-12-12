@@ -15,7 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -58,10 +60,16 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.compose.ui.platform.LocalContext
 import com.example.core_data.model.CreateCategoryRequest
+import com.example.core_data.model.ExpenseRequestDTO
+import com.example.core_data.model.ExpenseUpdateRequestDTO
 import com.example.core_data.network.NetworkResult
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.TimeZone
+import kotlin.math.abs
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -77,29 +85,24 @@ fun Add_Finance(
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
+    val travelIdLong = remember(trip.id) { trip.id.toLongOrNull() }
+    val isoFormatter = remember {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
+            timeZone = TimeZone.getDefault()
+        }
+    }
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Расходы", "Переводы", "Категории")
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<Expense?>(null) }
     var expenses by remember { mutableStateOf(trip.expenses) }
+    var expensesError by remember { mutableStateOf<String?>(null) }
+    var isExpensesLoading by remember { mutableStateOf(false) }
     var categories by remember { mutableStateOf<List<ExpenseCategory>>(emptyList()) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var categoriesError by remember { mutableStateOf<String?>(null) }
     var isCategoriesLoading by remember { mutableStateOf(false) }
-
-    LaunchedEffect(trip.expenses) {
-        expenses = trip.expenses
-    }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1000)
-            val updatedTrip = tripViewModel.getTripById(trip.id)
-            updatedTrip?.let {
-                expenses = it.expenses
-            }
-        }
-    }
+    var editingCategory by remember { mutableStateOf<ExpenseCategory?>(null) }
 
     fun mapCategoryError(res: NetworkResult<*>, defaultMessage: String): String =
         when (res) {
@@ -109,10 +112,59 @@ fun Add_Finance(
             else -> defaultMessage
         }
 
+    fun mapExpenseError(res: NetworkResult<*>, defaultMessage: String): String =
+        when (res) {
+            is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> "Проблемы с сетью"
+            is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+            else -> defaultMessage
+        }
+
+    fun refreshExpenses() {
+        scope.launch {
+            isExpensesLoading = true
+            expensesError = null
+            val travelId = travelIdLong
+            if (travelId == null) {
+                expensesError = "Некорректный идентификатор поездки"
+                isExpensesLoading = false
+                return@launch
+            }
+            when (val res = backend.getTravelExpenses(travelId)) {
+                is NetworkResult.Success -> {
+                    val mapped = res.data.expenses.map { exp ->
+                        Expense(
+                            id = exp.id.toString(),
+                            title = exp.name,
+                            amount = exp.sum ?: 0.0,
+                            category = exp.categoryName.orEmpty(),
+                            categoryId = exp.categoryId?.toString(),
+                            payerId = exp.payerId.toString(),
+                            paidFor = if (exp.participants.size > 1) "Индивидуальные суммы участников" else "Оплата за одного участника",
+                            date = formatDateForUi(exp.date),
+                            recipientAmounts = exp.participants.associate { it.userId.toString() to abs(it.share ?: 0.0) }
+                        )
+                    }
+                    expenses = mapped
+                    tripViewModel.updateTripExpenses(trip.id, mapped)
+                }
+                else -> expensesError = mapExpenseError(res, "Не удалось загрузить расходы")
+            }
+            isExpensesLoading = false
+        }
+    }
+
     LaunchedEffect(trip.id) {
+        refreshExpenses()
         isCategoriesLoading = true
         categoriesError = null
-        when (val res = backend.getCategories(trip.id.toLong())) {
+        val travelId = travelIdLong
+        if (travelId == null) {
+            categoriesError = "Некорректный идентификатор поездки"
+            isCategoriesLoading = false
+            return@LaunchedEffect
+        }
+        when (val res = backend.getCategories(travelId)) {
             is NetworkResult.Success -> {
                 categories = res.data.items.map { ExpenseCategory(id = it.id.toString(), name = it.name) }
             }
@@ -122,6 +174,12 @@ fun Add_Finance(
     }
 
     val totalExpenses = expenses.sumOf { it.amount }
+    val acceptedParticipants = remember(trip.participants) {
+        trip.participants.filter { it.status.toConfirmationStatus() == ConfirmationStatus.ACCEPTED }
+    }
+    fun buildParticipantShares(
+        recipients: Map<String, Double>
+    ): Map<Long, Double> = recipients.mapKeys { it.key.toLong() }
 
     Scaffold(
         topBar = {
@@ -214,25 +272,77 @@ fun Add_Finance(
                     trip = trip,
                     tripViewModel = tripViewModel,
                     categories = categories,
+                    isLoading = isExpensesLoading,
+                    errorMessage = expensesError,
                     showAddExpenseDialog = showAddExpenseDialog,
                     editingExpense = editingExpense,
                     onEditExpense = { editingExpense = it },
                     onDeleteExpense = { expense ->
-                        tripViewModel.deleteExpense(trip.id, expense.id)
-                        val updatedTrip = tripViewModel.getTripById(trip.id)
-                        updatedTrip?.let {
-                            expenses = it.expenses
+                        scope.launch {
+                            expensesError = null
+                            when (val res = backend.deleteExpense(trip.id.toLong(), expense.id.toLong())) {
+                                is NetworkResult.Success -> refreshExpenses()
+                                else -> expensesError = mapExpenseError(res, "Не удалось удалить расход")
+                            }
                         }
                     },
-                    onSaveExpense = { expense ->
-                        if (editingExpense != null) {
-                            tripViewModel.updateExpense(trip.id, expense)
-                        } else {
-                            tripViewModel.addExpense(trip.id, expense)
+                    onSaveExpense = { expense, isEditing ->
+                        val selectedCategoryId = categories.find { it.name == expense.category || it.id == expense.categoryId }?.id?.toLongOrNull()
+                        val payerIdLong = expense.payerId.toLongOrNull()
+                        if (selectedCategoryId == null) {
+                            expensesError = "Выберите категорию"
+                            return@ExpensesTab
                         }
-                        val updatedTrip = tripViewModel.getTripById(trip.id)
-                        updatedTrip?.let {
-                            expenses = it.expenses
+                        if (payerIdLong == null) {
+                            expensesError = "Выберите плательщика"
+                            return@ExpensesTab
+                        }
+                        val payerParticipant = acceptedParticipants.find { it.id == expense.payerId }
+                        if (payerParticipant == null) {
+                            expensesError = "Плательщик должен быть участником поездки"
+                            return@ExpensesTab
+                        }
+                    if (expense.recipientAmounts.isEmpty()) {
+                        expensesError = "Укажите участников для траты"
+                        return@ExpensesTab
+                    }
+                    val shares = buildParticipantShares(
+                        recipients = expense.recipientAmounts
+                    )
+                        val travelId = travelIdLong
+                        if (travelId == null) {
+                            expensesError = "Некорректный идентификатор поездки"
+                            return@ExpensesTab
+                        }
+                        scope.launch {
+                            expensesError = null
+                            if (isEditing) {
+                                val req = ExpenseUpdateRequestDTO(
+                                    name = expense.title,
+                                    description = null,
+                                    date = isoFormatter.format(Date()),
+                                    categoryId = selectedCategoryId,
+                                    payerId = payerIdLong,
+                                    participantShares = shares
+                                )
+                                when (val res = backend.updateExpense(travelId, expense.id.toLong(), req)) {
+                                    is NetworkResult.Success -> refreshExpenses()
+                                    else -> expensesError = mapExpenseError(res, "Не удалось обновить расход")
+                                }
+                            } else {
+                                val req = ExpenseRequestDTO(
+                                    name = expense.title,
+                                    description = null,
+                                    payerId = payerIdLong,
+                                    date = isoFormatter.format(Date()),
+                                    participantShares = shares,
+                                    categoryId = selectedCategoryId
+                                )
+                                when (val res = backend.createExpense(travelId, req)) {
+                                    is NetworkResult.Success -> refreshExpenses()
+                                    else -> expensesError = mapExpenseError(res, "Не удалось добавить расход")
+                                }
+                            }
                         }
                         showAddExpenseDialog = false
                         editingExpense = null
@@ -254,11 +364,22 @@ fun Add_Finance(
                     errorMessage = categoriesError,
                     isLoading = isCategoriesLoading,
                     showAddCategoryDialog = showAddCategoryDialog,
+                    editingCategory = editingCategory,
+                    onOpenAddDialog = {
+                        editingCategory = null
+                        showAddCategoryDialog = true
+                    },
                     onAddCategory = { category ->
+                        val travelId = travelIdLong
+                        if (travelId == null) {
+                            categoriesError = "Некорректный идентификатор поездки"
+                            return@CategoriesTab
+                        }
                         if (isCategoriesLoading) return@CategoriesTab
                         categoriesError = null
+                        editingCategory = null
                         scope.launch {
-                            when (val res = backend.createCategory(trip.id.toLong(), CreateCategoryRequest(category.name))) {
+                            when (val res = backend.createCategory(travelId, CreateCategoryRequest(category.name))) {
                                 is NetworkResult.Success -> {
                                     val newCat = ExpenseCategory(id = res.data.id.toString(), name = res.data.name)
                                     categories = categories + newCat
@@ -268,10 +389,33 @@ fun Add_Finance(
                             }
                         }
                     },
-                    onDeleteCategory = {
-                        categoriesError = "Удаление категорий пока не поддерживается"
+                    onEditCategory = { category ->
+                        editingCategory = category
+                        showAddCategoryDialog = true
                     },
-                    onDismissDialog = { showAddCategoryDialog = false }
+                    onSaveCategory = { category ->
+                        val travelId = travelIdLong
+                        if (travelId == null) {
+                            categoriesError = "Некорректный идентификатор поездки"
+                            return@CategoriesTab
+                        }
+                        if (isCategoriesLoading) return@CategoriesTab
+                        categoriesError = null
+                        scope.launch {
+                            when (val res = backend.editCategory(travelId, category.id.toLong(), com.example.core_data.model.EditCategoryRequest(category.name))) {
+                                is NetworkResult.Success -> {
+                                    categories = categories.map { if (it.id == category.id) category else it }
+                                    showAddCategoryDialog = false
+                                    editingCategory = null
+                                }
+                                else -> categoriesError = mapCategoryError(res, "Не удалось обновить категорию")
+                            }
+                        }
+                    },
+                    onDismissDialog = {
+                        showAddCategoryDialog = false
+                        editingCategory = null
+                    }
                 )
             }
         }
@@ -285,14 +429,30 @@ fun ExpensesTab(
     trip: Trip,
     tripViewModel: TripViewModel,
     categories: List<ExpenseCategory>,
+    isLoading: Boolean,
+    errorMessage: String?,
     showAddExpenseDialog: Boolean,
     editingExpense: Expense?,
     onEditExpense: (Expense) -> Unit,
     onDeleteExpense: (Expense) -> Unit,
-    onSaveExpense: (Expense) -> Unit,
+    onSaveExpense: (Expense, Boolean) -> Unit,
     onDismissDialog: () -> Unit
 ) {
     Column {
+        if (isLoading) {
+            Text(
+                text = "Загружаем расходы...",
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                color = Color.Gray
+            )
+        }
+        if (!errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = Color.Red
+            )
+        }
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -419,14 +579,14 @@ fun ExpensesTab(
         }
 
         if (showAddExpenseDialog || editingExpense != null) {
-            AddEditExpenseDialog(
-                expense = editingExpense,
-                trip = trip,
-                tripViewModel = tripViewModel,
-                categories = categories,
-                onDismiss = onDismissDialog,
-                onSave = onSaveExpense
-            )
+                AddEditExpenseDialog(
+                    expense = editingExpense,
+                    trip = trip,
+                    tripViewModel = tripViewModel,
+                    categories = categories,
+                    onDismiss = onDismissDialog,
+                    onSave = { expense -> onSaveExpense(expense, editingExpense != null) }
+                )
         }
     }
 }
@@ -443,15 +603,18 @@ fun ExpenseItem(
     val payerName = tripViewModel.getPayerName(trip.id, expense.payerId)
 
     val paidForIcon = when {
-        expense.paidFor == "Только себя" -> Icons.Filled.Person
-        expense.paidFor.startsWith("За: ") -> Icons.Filled.Person
+        expense.recipientAmounts.size <= 1 -> Icons.Filled.Person
         else -> Icons.Filled.Group
     }
 
     val paidForColor = when {
-        expense.paidFor == "Только себя" -> Color(0xFF2196F3)
-        expense.paidFor.startsWith("За: ") -> Color(0xFF9C27B0)
+        expense.recipientAmounts.size <= 1 -> Color(0xFF2196F3)
         else -> Color(0xFF4CAF50)
+    }
+    val paidForText = if (expense.recipientAmounts.size <= 1) {
+        "Оплата за одного участника"
+    } else {
+        "Индивидуальные суммы участников"
     }
 
     Card(
@@ -525,7 +688,7 @@ fun ExpenseItem(
                     Spacer(modifier = Modifier.width(6.dp))
                     Column {
                         Text(
-                            text = "За: ${expense.paidFor}",
+                            text = paidForText,
                             fontSize = 12.sp,
                             color = Color(0xFF666666),
                             fontWeight = FontWeight.Medium
@@ -612,24 +775,29 @@ fun AddEditExpenseDialog(
     onDismiss: () -> Unit,
     onSave: (Expense) -> Unit
 ) {
+    val acceptedParticipants = remember(trip.participants) {
+        trip.participants.filter { it.status.toConfirmationStatus() == ConfirmationStatus.ACCEPTED }
+    }
     var title by remember { mutableStateOf(expense?.title ?: "") }
-    var amount by remember { mutableStateOf(expense?.amount?.toString() ?: "") }
     var selectedCategory by remember {
         mutableStateOf(expense?.category ?: categories.firstOrNull()?.name ?: "")
     }
     var selectedPayerId by remember {
-        mutableStateOf(expense?.payerId ?: trip.participants.firstOrNull()?.id ?: "")
+        mutableStateOf(expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: "")
     }
-    var selectedPaidFor by remember { mutableStateOf(expense?.paidFor ?: "Только себя") }
+    var recipientAmounts by remember {
+        mutableStateOf<Map<String, String>>(
+            expense?.recipientAmounts?.mapValues { it.value.toString() } ?: emptyMap()
+        )
+    }
+    LaunchedEffect(selectedPayerId) {
+        if (selectedPayerId.isNotBlank() && recipientAmounts[selectedPayerId].isNullOrBlank()) {
+            recipientAmounts = recipientAmounts + (selectedPayerId to "0")
+        }
+    }
+    var localError by remember { mutableStateOf<String?>(null) }
     var showCategoryDropdown by remember { mutableStateOf(false) }
-    var showPaidForDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
-
-    val paidForOptions = remember(trip.id) {
-        val baseOptions = listOf("Только себя", "Поровну между всеми")
-        val participantOptions = trip.participants.map { "За: ${it.name}" }
-        baseOptions + participantOptions
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -642,7 +810,8 @@ fun AddEditExpenseDialog(
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 OutlinedTextField(
                     value = title,
@@ -654,62 +823,26 @@ fun AddEditExpenseDialog(
                     }
                 )
 
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { newValue ->
-                        if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
-                            amount = newValue
-                        }
-                    },
-                    label = { Text("Сумма (руб.)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(Icons.Filled.AttachMoney, null)
-                    }
-                )
-
                 Box(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
-                        OutlinedTextField(
-                            value = selectedCategory,
-                            onValueChange = {},
-                            label = { Text("Категория") },
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            enabled = false,
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Category,
-                                    contentDescription = null,
-                                    tint = Color(0xFF757575)
-                                )
-                            },
-                            trailingIcon = {
-                                if (categories.isEmpty()) {
-                                    Icon(
-                                        Icons.Filled.Warning,
-                                        "Нет категорий",
-                                        tint = Color(0xFFFF9800)
-                                    )
+                    OutlinedTextField(
+                        value = selectedCategory,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Категория") },
+                        leadingIcon = { Icon(Icons.Filled.Category, null, tint = Color(0xFF757575)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable {
+                                if (categories.isNotEmpty()) {
+                                    showCategoryDropdown = true
                                 }
                             }
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clickable {
-                                    if (categories.isNotEmpty()) {
-                                        showCategoryDropdown = true
-                                    }
-                                }
-                                .background(Color.Transparent)
-                        )
-                    }
-
+                    )
                     DropdownMenu(
                         expanded = showCategoryDropdown,
                         onDismissRequest = { showCategoryDropdown = false },
@@ -717,28 +850,13 @@ fun AddEditExpenseDialog(
                     ) {
                         if (categories.isEmpty()) {
                             DropdownMenuItem(
-                                text = {
-                                    Text("Сначала создайте категории во вкладке 'Категории'")
-                                },
+                                text = { Text("Сначала создайте категории во вкладке 'Категории'") },
                                 onClick = {}
                             )
                         } else {
                             categories.forEach { category ->
                                 DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Category,
-                                                contentDescription = null,
-                                                tint = Color(0xFF757575),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(category.name)
-                                        }
-                                    },
+                                    text = { Text(category.name) },
                                     onClick = {
                                         selectedCategory = category.name
                                         showCategoryDropdown = false
@@ -749,121 +867,32 @@ fun AddEditExpenseDialog(
                     }
                 }
 
-                Box(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column {
-                        OutlinedTextField(
-                            value = selectedPaidFor,
-                            onValueChange = {},
-                            label = { Text("За кого оплачено") },
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            enabled = false,
-                            leadingIcon = {
-                                Icon(Icons.Filled.Group, null, tint = Color(0xFF4CAF50))
-                            }
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clickable { showPaidForDropdown = true }
-                                .background(Color.Transparent)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showPaidForDropdown,
-                        onDismissRequest = { showPaidForDropdown = false },
-                        modifier = Modifier.fillMaxWidth(0.9f)
-                    ) {
-                        paidForOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val icon = when {
-                                            option == "Только себя" -> Icons.Filled.Person
-                                            option.startsWith("За: ") -> Icons.Filled.Person
-                                            else -> Icons.Filled.Group
-                                        }
-                                        val tint = when {
-                                            option == "Только себя" -> Color(0xFF2196F3)
-                                            option.startsWith("За: ") -> Color(0xFF9C27B0)
-                                            else -> Color(0xFF4CAF50)
-                                        }
-
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = tint,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text(option)
-                                    }
-                                },
-                                onClick = {
-                                    selectedPaidFor = option
-                                    showPaidForDropdown = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if (trip.participants.isNotEmpty()) {
+                if (acceptedParticipants.isNotEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val selectedPayerName = trip.participants.find { it.id == selectedPayerId }?.name ?: "Не выбран"
-
-                        Column {
-                            OutlinedTextField(
-                                value = selectedPayerName,
-                                onValueChange = {},
-                                label = { Text("Кто оплатил") },
-                                modifier = Modifier.fillMaxWidth(),
-                                readOnly = true,
-                                enabled = false,
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3))
-                                }
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clickable { showPayerDropdown = true }
-                                    .background(Color.Transparent)
-                            )
-                        }
-
+                        val selectedPayerName = acceptedParticipants.find { it.id == selectedPayerId }?.name ?: "Не выбран"
+                        OutlinedTextField(
+                            value = selectedPayerName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Кто оплатил") },
+                            leadingIcon = { Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showPayerDropdown = true }
+                        )
                         DropdownMenu(
                             expanded = showPayerDropdown,
                             onDismissRequest = { showPayerDropdown = false },
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
-                            trip.participants.forEach { user ->
+                            acceptedParticipants.forEach { user ->
                                 DropdownMenuItem(
-                                    text = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Person,
-                                                contentDescription = null,
-                                                tint = Color(0xFF2196F3),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text(user.name)
-                                        }
-                                    },
+                                    text = { Text(user.name) },
                                     onClick = {
                                         selectedPayerId = user.id
                                         showPayerDropdown = false
@@ -879,27 +908,90 @@ fun AddEditExpenseDialog(
                         fontSize = 14.sp
                     )
                 }
+
+                Text(
+                    text = "За кого платили (укажите суммы)",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    acceptedParticipants.forEach { participant ->
+                        val isPayer = participant.id == selectedPayerId
+                        val amountValue = recipientAmounts[participant.id] ?: ""
+                        val isChecked = isPayer || recipientAmounts.containsKey(participant.id)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Checkbox(
+                                checked = isChecked,
+                                enabled = !isPayer,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        recipientAmounts = recipientAmounts + (participant.id to amountValue.ifBlank { "0" })
+                                    } else {
+                                        recipientAmounts = recipientAmounts - participant.id
+                                    }
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                if (isPayer) "${participant.name} (платил)" else participant.name,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = amountValue,
+                                onValueChange = { newValue ->
+                                    if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
+                                        recipientAmounts = recipientAmounts + (participant.id to newValue)
+                                    }
+                                },
+                                label = { Text("Сумма") },
+                                modifier = Modifier.width(140.dp),
+                                singleLine = true,
+                                enabled = isChecked
+                            )
+                        }
+                    }
+                }
+
+                localError?.let {
+                    Text(it, color = Color.Red, fontSize = 12.sp)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (title.isNotBlank() && amount.isNotBlank() && amount.toDoubleOrNull() != null &&
-                        selectedPayerId.isNotBlank() && selectedCategory.isNotBlank()) {
-                        val newExpense = Expense(
-                            id = expense?.id ?: UUID.randomUUID().toString(),
-                            title = title,
-                            amount = amount.toDouble(),
-                            category = selectedCategory,
-                            payerId = selectedPayerId,
-                            paidFor = selectedPaidFor
-                        )
-                        onSave(newExpense)
+                    val parsedRecipients = recipientAmounts.mapNotNull { (id, value) ->
+                        val v = value.toDoubleOrNull()
+                        if (v != null && v > 0) id to v else null
+                    }.toMap()
+                    if (title.isBlank() || selectedPayerId.isBlank() || selectedCategory.isBlank()) return@Button
+                    if (parsedRecipients.isEmpty()) {
+                        localError = "Укажите суммы для участников"
+                        return@Button
                     }
+                    if (!parsedRecipients.containsKey(selectedPayerId)) {
+                        localError = "Добавьте сумму для плательщика"
+                        return@Button
+                    }
+                    val total = parsedRecipients.values.sumOf { it }
+                    val newExpense = Expense(
+                        id = expense?.id ?: UUID.randomUUID().toString(),
+                        title = title,
+                        amount = total,
+                        category = selectedCategory,
+                        payerId = selectedPayerId,
+                        paidFor = "Выбранные участники",
+                        paidForIds = parsedRecipients.keys.toList(),
+                        recipientAmounts = parsedRecipients
+                    )
+                    onSave(newExpense)
+                    localError = null
                 },
                 enabled = title.isNotBlank() &&
-                        amount.isNotBlank() &&
-                        amount.toDoubleOrNull() != null &&
                         selectedPayerId.isNotBlank() &&
                         selectedCategory.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(
@@ -930,13 +1022,39 @@ fun CategoriesTab(
     errorMessage: String?,
     isLoading: Boolean,
     showAddCategoryDialog: Boolean,
+    editingCategory: ExpenseCategory?,
+    onOpenAddDialog: () -> Unit,
     onAddCategory: (ExpenseCategory) -> Unit,
-    onDeleteCategory: (ExpenseCategory) -> Unit,
+    onSaveCategory: (ExpenseCategory) -> Unit,
+    onEditCategory: (ExpenseCategory) -> Unit,
     onDismissDialog: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Категории",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Button(
+                onClick = onOpenAddDialog,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFFDD2D),
+                    contentColor = Color(0xFF333333)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Добавить")
+            }
+        }
         if (isLoading) {
             Text(
                 text = "Загружаем категории...",
@@ -988,16 +1106,18 @@ fun CategoriesTab(
                 items(categories) { category ->
                     CategoryItem(
                         category = category,
-                        onDelete = { onDeleteCategory(category) }
+                        onEdit = { onEditCategory(category) }
                     )
                 }
             }
         }
     }
 
-    if (showAddCategoryDialog) {
+    if (showAddCategoryDialog || editingCategory != null) {
         AddCategoryDialog(
+            category = editingCategory,
             onAddCategory = onAddCategory,
+            onSaveCategory = onSaveCategory,
             onDismiss = onDismissDialog
         )
     }
@@ -1006,10 +1126,8 @@ fun CategoriesTab(
 @Composable
 fun CategoryItem(
     category: ExpenseCategory,
-    onDelete: () -> Unit
+    onEdit: () -> Unit
 ) {
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1047,60 +1165,28 @@ fun CategoryItem(
             }
 
             IconButton(
-                onClick = { showDeleteDialog = true },
+                onClick = onEdit,
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Удалить",
-                    tint = Color(0xFFF44336),
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = "Редактировать",
+                    tint = Color(0xFF2196F3),
                     modifier = Modifier.size(20.dp)
                 )
             }
         }
     }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Удалить категорию?") },
-            text = {
-                Text("Вы уверены, что хотите удалить категорию \"${category.name}\"? Все расходы в этой категории станут без категории.")
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete()
-                        showDeleteDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF44336)
-                    )
-                ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = { showDeleteDialog = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF5F5F5),
-                        contentColor = Color(0xFF666666)
-                    )
-                ) {
-                    Text("Отмена")
-                }
-            }
-        )
-    }
 }
 
 @Composable
 fun AddCategoryDialog(
+    category: ExpenseCategory? = null,
     onAddCategory: (ExpenseCategory) -> Unit,
+    onSaveCategory: (ExpenseCategory) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var categoryName by remember { mutableStateOf("") }
+    var categoryName by remember { mutableStateOf(category?.name ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1129,8 +1215,11 @@ fun AddCategoryDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (categoryName.isNotBlank()) {
+                    if (categoryName.isBlank()) return@Button
+                    if (category == null) {
                         onAddCategory(ExpenseCategory(name = categoryName))
+                    } else {
+                        onSaveCategory(category.copy(name = categoryName))
                     }
                 },
                 enabled = categoryName.isNotBlank(),
@@ -1155,3 +1244,12 @@ fun AddCategoryDialog(
         }
     )
 }
+
+private fun String?.toConfirmationStatus(): ConfirmationStatus =
+    when (this?.uppercase(Locale.getDefault())) {
+        "INVITED" -> ConfirmationStatus.PENDING
+        "ACCEPTED" -> ConfirmationStatus.ACCEPTED
+        "REJECTED" -> ConfirmationStatus.REJECTED
+        "LEAVE" -> ConfirmationStatus.LEFT
+        else -> ConfirmationStatus.PENDING
+    }
