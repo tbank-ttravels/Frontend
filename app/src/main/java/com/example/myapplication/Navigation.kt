@@ -47,12 +47,15 @@ fun TravelApp() {
         }
         composable("add_transfer/{tripId}") { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId")
-            AddTransferScreen(
-                tripId = tripId,
-                navController = navController,
-                tripViewModel = tripViewModel
-            )
+            if (tripId != null) {
+                AddTransferScreen(
+                    tripId = tripId,
+                    navController = navController,
+                    tripViewModel = tripViewModel
+                )
+            }
         }
+
 
         composable("invitations") {
             InvitationsScreen(navController = navController)
