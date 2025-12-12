@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.text.font.FontWeight
 
 @Composable
-fun TransfersScreen(
+fun TransfersTab(
     trip: Trip,
     tripViewModel: TripViewModel,
     navController: NavController
