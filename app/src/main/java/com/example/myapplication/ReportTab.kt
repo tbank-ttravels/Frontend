@@ -55,6 +55,7 @@ fun ReportTab(trip: Trip) {
                     value = "${trip.startTown} - ${trip.endTown}"
                 )
 
+
                 InfoRow(
                     icon = Icons.Filled.DateRange,
                     title = "Продолжительность",
