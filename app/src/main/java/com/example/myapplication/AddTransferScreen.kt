@@ -21,19 +21,13 @@ fun AddTransferScreen(
     tripViewModel: TripViewModel
 ) {
     var trip by remember { mutableStateOf<Trip?>(null) }
-    var fromUserId by remember { mutableStateOf("") }
-    var toUserId by remember { mutableStateOf("") }
+    var fromPhone by remember { mutableStateOf("") }
+    var toPhone by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
 
     LaunchedEffect(tripId) {
         if (tripId != null) {
             trip = tripViewModel.getTripById(tripId)
-            trip?.participants?.firstOrNull()?.let {
-                fromUserId = it.id
-            }
-            trip?.participants?.getOrNull(1)?.let {
-                toUserId = it.id
-            }
         }
     }
 
@@ -74,15 +68,14 @@ fun AddTransferScreen(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
-
                 trip?.participants?.forEach { participant ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (fromUserId == participant.id) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
+                            containerColor = if (fromPhone == participant.phone) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
                         ),
-                        onClick = { fromUserId = participant.id }
+                        onClick = { fromPhone = participant.phone }
                     ) {
                         Row(
                             modifier = Modifier
@@ -93,7 +86,7 @@ fun AddTransferScreen(
                             Icon(
                                 imageVector = Icons.Filled.Person,
                                 contentDescription = "Участник",
-                                tint = Color(0xFFF44336),
+                                tint = Color(0xFF2196F3),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -102,35 +95,33 @@ fun AddTransferScreen(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                            if (fromUserId == participant.id) {
+                            if (fromPhone == participant.phone) {
                                 Spacer(modifier = Modifier.weight(1f))
                                 Icon(
                                     imageVector = Icons.Filled.Check,
                                     contentDescription = "Выбрано",
-                                    tint = Color(0xFFFFF292)
+                                    tint = Color(0xFF2196F3)
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
+                // Кому
                 Text(
                     text = "Кому:",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )
-
                 trip?.participants?.forEach { participant ->
-                    if (participant.id != fromUserId) {
+                    if (participant.phone != fromPhone) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (toUserId == participant.id) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
+                                containerColor = if (toPhone == participant.phone) Color(0xFFE8F5E9) else Color(0xFFF5F5F5)
                             ),
-                            onClick = { toUserId = participant.id }
+                            onClick = { toPhone = participant.phone }
                         ) {
                             Row(
                                 modifier = Modifier
@@ -150,7 +141,7 @@ fun AddTransferScreen(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium
                                 )
-                                if (toUserId == participant.id) {
+                                if (toPhone == participant.phone) {
                                     Spacer(modifier = Modifier.weight(1f))
                                     Icon(
                                         imageVector = Icons.Filled.Check,
@@ -167,7 +158,11 @@ fun AddTransferScreen(
 
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { amount = it },
+                    onValueChange = { newValue ->
+                        if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
+                            amount = newValue
+                        }
+                    },
                     label = { Text("Сумма перевода") },
                     placeholder = { Text("Введите сумму") },
                     modifier = Modifier.fillMaxWidth(),
@@ -196,15 +191,14 @@ fun AddTransferScreen(
 
             Button(
                 onClick = {
-                    if (fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()) {
+                    if (fromPhone.isNotEmpty() && toPhone.isNotEmpty() && amount.isNotEmpty()) {
                         val amountValue = amount.toDoubleOrNull() ?: 0.0
-                        tripViewModel.addTransfer(
+                        tripViewModel.addTransferByPhone(
                             tripId = tripId ?: "",
-                            fromUserId = fromUserId,
-                            toUserId = toUserId,
+                            fromPhone = fromPhone,
+                            toPhone = toPhone,
                             amount = amountValue
                         )
-
                         navController.navigateUp()
                     }
                 },
@@ -214,7 +208,7 @@ fun AddTransferScreen(
                     containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
                 ),
-                enabled = fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()
+                enabled = fromPhone.isNotEmpty() && toPhone.isNotEmpty() && amount.isNotEmpty()
             ) {
                 Text("Добавить")
             }

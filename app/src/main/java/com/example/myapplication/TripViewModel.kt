@@ -437,4 +437,24 @@ class TripViewModel : ViewModel() {
         val trip = getTripById(tripId) ?: return emptyMap()
         return getMockParticipantBalances(trip)
     }
+    fun addTransferByPhone(tripId: String, fromPhone: String, toPhone: String, amount: Double) {
+        viewModelScope.launch {
+            val trip = getTripById(tripId) ?: return@launch
+
+            val fromUser = trip.participants.find { it.phone == fromPhone } ?: return@launch
+            val toUser = trip.participants.find { it.phone == toPhone } ?: return@launch
+
+            val transfer = Transfer(
+                fromUserId = fromUser.id,
+                toUserId = toUser.id,
+                amount = amount
+            )
+
+            val currentTransfers = _transfers.value[tripId] ?: emptyList()
+            _transfers.value = _transfers.value + (tripId to (currentTransfers + transfer))
+
+            println("Добавлен перевод по телефону в поездку $tripId: ${fromUser.name} -> ${toUser.name} ${amount}₽")
+        }
+    }
+
 }
