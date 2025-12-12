@@ -223,10 +223,10 @@ fun Add_Finance(
                     }
                 )
 
-                1 -> TransfersTab(
+                1 -> TransfersScreen(
                     trip = trip,
+                    tripViewModel = tripViewModel,
                     navController = navController,
-                    tripViewModel = tripViewModel
                 )
 
                 2 -> CategoriesTab(
