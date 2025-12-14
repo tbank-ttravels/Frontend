@@ -34,7 +34,6 @@ androidxFoundationLayout = "1.10.0"
 uiVersion = "1.10.0"
 firebaseFirestoreKtx = "26.0.2"
 foundationVersion = "1.10.0"
-roomKtx = "2.8.4"
 
 [libraries]
 androidx-activity-compose-v180 = { module = "androidx.activity:activity-compose", version.ref = "activityComposeVersion" }
@@ -80,7 +79,6 @@ foundation-layout = { group = "androidx.compose.foundation", name = "foundation-
 ui = { group = "androidx.compose.ui", name = "ui", version.ref = "uiVersion" }
 firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx", version.ref = "firebaseFirestoreKtx" }
 androidx-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "foundationVersion" }
-androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "roomKtx" }
 
 
 [plugins]

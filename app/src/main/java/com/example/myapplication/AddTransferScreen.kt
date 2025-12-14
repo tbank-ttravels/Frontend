@@ -1,6 +1,8 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -13,6 +15,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.core_data.model.CreateTransferRequest
+import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
 
 @Composable
 fun AddTransferScreen(
@@ -24,6 +31,22 @@ fun AddTransferScreen(
     var fromUserId by remember { mutableStateOf("") }
     var toUserId by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
+    
+    val scrollState = rememberScrollState()
+
+    fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
+        when (res) {
+            is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> "Проблемы с сетью"
+            is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+            else -> defaultMessage
+        }
 
     LaunchedEffect(tripId) {
         if (tripId != null) {
@@ -50,6 +73,7 @@ fun AddTransferScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text(
@@ -178,6 +202,15 @@ fun AddTransferScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        errorMessage?.let { message ->
+            Text(
+                text = message,
+                color = Color.Red,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -196,16 +229,42 @@ fun AddTransferScreen(
 
             Button(
                 onClick = {
+                    if (tripId == null) return@Button
                     if (fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()) {
                         val amountValue = amount.toDoubleOrNull() ?: 0.0
-                        tripViewModel.addTransfer(
-                            tripId = tripId ?: "",
-                            fromUserId = fromUserId,
-                            toUserId = toUserId,
-                            amount = amountValue
-                        )
-
-                        navController.navigateUp()
+                        scope.launch {
+                            isSaving = true
+                            errorMessage = null
+                            val sender = fromUserId.toLongOrNull()
+                            val recipient = toUserId.toLongOrNull()
+                            if (sender == null || recipient == null) {
+                                errorMessage = "Не удалось определить участников перевода"
+                                isSaving = false
+                                return@launch
+                            }
+                            when (val res = backend.createTransfer(
+                                tripId.toLong(),
+                                CreateTransferRequest(
+                                    senderId = sender,
+                                    recipientId = recipient,
+                                    sum = amountValue
+                                )
+                            )) {
+                                is NetworkResult.Success -> {
+                                    val mapped = Transfer(
+                                        id = res.data.id.toString(),
+                                        fromUserId = res.data.senderId.toString(),
+                                        toUserId = res.data.recipientId.toString(),
+                                        amount = res.data.sum
+                                    )
+                                    val updated = tripViewModel.getTransfersForTrip(tripId) + mapped
+                                    tripViewModel.setTransfers(tripId, updated)
+                                    navController.navigateUp()
+                                }
+                                else -> errorMessage = mapError(res, "Не удалось создать перевод")
+                            }
+                            isSaving = false
+                        }
                     }
                 },
                 modifier = Modifier.weight(1f),
@@ -214,10 +273,12 @@ fun AddTransferScreen(
                     containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
                 ),
-                enabled = fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty()
+                enabled = fromUserId.isNotEmpty() && toUserId.isNotEmpty() && amount.isNotEmpty() && !isSaving
             ) {
-                Text("Добавить")
+                Text(if (isSaving) "Сохранение..." else "Добавить")
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }

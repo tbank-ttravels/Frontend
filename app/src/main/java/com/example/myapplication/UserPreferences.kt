@@ -12,18 +12,23 @@ class UserPreferences(context: Context) {
 
     companion object {
         val USER_NAME = stringPreferencesKey("user_name")
+        val USER_SURNAME = stringPreferencesKey("user_surname")
         val USER_PHONE = stringPreferencesKey("user_phone")
     }
 
-    suspend fun saveUser(name: String, phone: String) {
+    suspend fun saveUser(name: String, surname: String, phone: String) {
         dataStore.edit { preferences ->
             preferences[USER_NAME] = name
+            preferences[USER_SURNAME] = surname
             preferences[USER_PHONE] = phone
         }
     }
 
     val userName: Flow<String> = dataStore.data
         .map { preferences -> preferences[USER_NAME] ?: "" }
+
+    val userSurname: Flow<String> = dataStore.data
+        .map { preferences -> preferences[USER_SURNAME] ?: "" }
 
     val userPhone: Flow<String> = dataStore.data
         .map { preferences -> preferences[USER_PHONE] ?: "" }

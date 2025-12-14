@@ -10,10 +10,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,15 +21,13 @@ import androidx.navigation.NavController
 @Composable
 fun MainScreen(
     navController: NavController,
-    tripViewModel: TripViewModel,
-    userViewModel: UserViewModel
+    tripViewModel: TripViewModel
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            //.padding(16.dp),
     ) {
         CreateTab(navController, tripViewModel)
         Button(
@@ -41,11 +35,11 @@ fun MainScreen(
                 navController.navigate("profile")
             },
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 8.dp),
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 16.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFFFFDD2D),
+                containerColor = Color(0xFFFFFFFF),
                 contentColor = Color(0xFF333333)
             ),
             elevation = ButtonDefaults.buttonElevation(

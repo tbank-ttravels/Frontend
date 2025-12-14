@@ -75,9 +75,9 @@ fun Profile(
         when (val res = backend.getCurrentUser()) {
             is NetworkResult.Success -> {
                 val acc = res.data
-                val combinedName = listOfNotNull(acc.name, acc.surname).joinToString(" ").ifBlank { acc.phone ?: "" }
                 userViewModel.updateUser(
-                    name = combinedName,
+                    name = acc.name.orEmpty(),
+                    surname = acc.surname.orEmpty(),
                     phone = acc.phone.orEmpty()
                 )
                 errorMessage = null
@@ -137,8 +137,9 @@ fun Profile(
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
+                    val displayName = listOf(userData.name, userData.surname).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Неизвестно" }
                     Text(
-                        text = userData.name,
+                        text = displayName,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),

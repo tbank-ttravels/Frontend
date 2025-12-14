@@ -2,6 +2,8 @@ package com.example.myapplication
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -10,8 +12,13 @@ import androidx.navigation.compose.rememberNavController
 @Composable
 fun TravelApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val backend = remember { BackendProvider.get(context) }
+    val userViewModel: UserViewModel = viewModel(
+        factory = UserViewModel.provideFactory(backend)
+    )
+
     val tripViewModel: TripViewModel = viewModel()
-    val userViewModel: UserViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -36,16 +43,19 @@ fun TravelApp() {
         }
 
         composable("welcome") {
-            Welcome(navController = navController)
+            Welcome(
+                navController = navController,
+            )
         }
 
         composable("main") {
             MainScreen(
                 navController = navController,
                 tripViewModel = tripViewModel,
-                userViewModel = userViewModel
+
             )
         }
+
         composable("add_transfer/{tripId}") { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId")
             AddTransferScreen(
@@ -56,10 +66,10 @@ fun TravelApp() {
         }
 
         composable("invitations") {
-            InvitationsScreen(navController = navController)
+            InvitationsScreen(
+                navController = navController
+            )
         }
-
-
 
         composable("profile") {
             Profile(
@@ -90,7 +100,10 @@ fun TravelApp() {
         }
 
         composable("edit_profile") {
-            EditProfileScreen(navController = navController, userViewModel = userViewModel)
+            EditProfileScreen(
+                navController = navController,
+                userViewModel = userViewModel
+            )
         }
 
         composable("add_participant/{tripId}") { backStackEntry ->

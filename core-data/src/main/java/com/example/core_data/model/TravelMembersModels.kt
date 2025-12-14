@@ -7,7 +7,8 @@ data class TravelMemberItem(
     val id: Long,
     val name: String? = null,
     val phone: String? = null,
-    val status: String? = null
+    val status: String? = null,
+    val role: String? = null
 )
 
 @Serializable

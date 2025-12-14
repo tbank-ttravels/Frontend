@@ -1,10 +1,25 @@
 package com.example.myapplication
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Money
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +48,6 @@ fun FinanceTab(
         )
 
         val totalExpenses = trip.expenses.sumOf { it.amount }
-        val budget = trip.budget.toDoubleOrNull() ?: 0.0
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -71,46 +85,11 @@ fun FinanceTab(
                         )
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            text = "Бюджет",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF666666)
-                        )
-                        Text(
-                            text = "${trip.budget}",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF4CAF50),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(0.dp))
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (budget > 0) {
-                    val progress = (totalExpenses / budget).coerceIn(0.0, 1.0)
-                    LinearProgressIndicator(
-                        progress = progress.toFloat(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp),
-                        color = if (progress > 0.9) Color(0xFFF44336) else Color(0xFF4CAF50),
-                        trackColor = Color(0xFFE0E0E0)
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Использовано ${(progress * 100).toInt()}% бюджета",
-                        fontSize = 12.sp,
-                        color = Color(0xFF666666)
-                    )
-                }
             }
         }
 

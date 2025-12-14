@@ -1,40 +1,104 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import java.util.UUID
+import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 fun ParticipantsTab(
     trip: Trip,
     tripViewModel: TripViewModel,
-    navController: NavController
+    navController: NavController,
+    userViewModel: UserViewModel
 ) {
-    val userViewModel: UserViewModel = viewModel()
+
     val userData by userViewModel.userData.collectAsState()
     val currentUserPhone = userData.phone
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
+
+    var showLeaveDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(trip.id) {
+        isLoading = true
+        errorMessage = null
+        when (val res = backend.getTravelMembers(trip.id.toLong())) {
+            is NetworkResult.Success -> {
+                val members = res.data.members.map {
+                    User(
+                        id = it.id.toString(),
+                        name = it.name.orEmpty(),
+                        phone = it.phone.orEmpty(),
+                        status = it.status,
+                        role = it.role
+                    )
+                }
+                tripViewModel.setParticipants(trip.id, members)
+            }
+            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+            else -> errorMessage = "Не удалось загрузить участников"
+        }
+        isLoading = false
+    }
 
     val isCurrentUserInTrip = currentUserPhone.isNotEmpty() && trip.participants.any { it.phone == currentUserPhone }
-    var showLeaveDialog by remember { mutableStateOf(false) }
-
     val participantStatuses by remember(trip.participants) {
         derivedStateOf {
-            getMockParticipantStatuses(trip.participants, currentUserPhone)
+            trip.participants.associate { participant ->
+                participant.id to participant.status.toConfirmationStatus()
+            }
         }
+    }
+    val isOwner = remember(trip.participants, currentUserPhone) {
+        trip.participants.any { it.phone == currentUserPhone && it.role.equals("OWNER", ignoreCase = true) }
     }
 
     Column(
@@ -76,6 +140,13 @@ fun ParticipantsTab(
                     fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+
+        if (isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        if (!errorMessage.isNullOrBlank()) {
+            Text(text = errorMessage ?: "", color = Color.Red, fontSize = 13.sp)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -155,22 +226,49 @@ fun ParticipantsTab(
                 trip.participants.forEach { user ->
                     val status = participantStatuses[user.id] ?: ConfirmationStatus.ACCEPTED
                     val isCurrentUser = user.phone == currentUserPhone
-                    val isTripCreator = false
 
                     ParticipantCardWithConfirmation(
                         user = user,
                         confirmationStatus = status,
                         onDeleteClick = {
-                            tripViewModel.removeParticipantFromTrip(trip.id, user.id)
+                            isLoading = true
+                            errorMessage = null
+                            scope.launch {
+                                val res = backend.kickMember(trip.id.toLong(), user.id.toLong())
+                                if (res is NetworkResult.Success) {
+                                    when (val refresh = backend.getTravelMembers(trip.id.toLong())) {
+                                        is NetworkResult.Success -> {
+                                            val members = refresh.data.members.map {
+                                                User(
+                                                    id = it.id.toString(),
+                                                    name = it.name.orEmpty(),
+                                                    phone = it.phone.orEmpty(),
+                                                    status = it.status
+                                                )
+                                            }
+                                            tripViewModel.setParticipants(trip.id, members)
+                                        }
+                                        else -> Unit
+                                    }
+                                } else {
+                                    errorMessage = when (res) {
+                                        is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+                                        is NetworkResult.NetworkError -> "Проблемы с сетью"
+                                        is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+                                        else -> "Не удалось удалить участника"
+                                    }
+                                }
+                                isLoading = false
+                            }
                         },
                         isCurrentUser = isCurrentUser,
-                        isTripCreator = isTripCreator
+                        isTripCreator = isOwner
                     )
                 }
             }
         }
 
-        if (trip.participants.isNotEmpty() && isCurrentUserInTrip) {
+        if (trip.participants.isNotEmpty() && isCurrentUserInTrip && !isOwner) {
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(
                 onClick = { showLeaveDialog = true },
@@ -182,13 +280,14 @@ fun ParticipantsTab(
                     containerColor = Color.White,
                     contentColor = Color(0xFFF44336)
                 ),
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    width = 1.dp,
-
+                border = ButtonDefaults.outlinedButtonBorder(
+                    enabled = true
+                ).copy(
+                    width = 1.dp
                 )
             ) {
                 Icon(
-                    imageVector = Icons.Filled.ExitToApp,
+                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                     contentDescription = "Выйти из поездки",
                     modifier = Modifier.size(18.dp)
                 )
@@ -248,15 +347,34 @@ fun ParticipantsTab(
                 Button(
                     onClick = {
                         if (isCurrentUserInTrip && currentUserPhone.isNotEmpty()) {
-                            val currentUserId = trip.participants.find { it.phone == currentUserPhone }?.id
-                            if (currentUserId != null) {
-                                tripViewModel.removeParticipantFromTrip(trip.id, currentUserId)
-                                navController.navigate("main") {
-                                    popUpTo("main") {
-                                        inclusive = true
+                            isLoading = true
+                            scope.launch {
+                                val res = backend.leaveTravel(trip.id.toLong())
+                                if (res is NetworkResult.Success) {
+                                    when (val refresh = backend.getTravelMembers(trip.id.toLong())) {
+                                        is NetworkResult.Success -> {
+                                            val members = refresh.data.members.map {
+                                                User(
+                                                    id = it.id.toString(),
+                                                    name = it.name.orEmpty(),
+                                                    phone = it.phone.orEmpty(),
+                                                    status = it.status
+                                                )
+                                            }
+                                            tripViewModel.setParticipants(trip.id, members)
+                                        }
+                                        else -> Unit
                                     }
-                                    launchSingleTop = true
+                                    navController.navigate("main") {
+                                        popUpTo("main") {
+                                            inclusive = true
+                                        }
+                                        launchSingleTop = true
+                                    }
+                                } else {
+                                    errorMessage = "Не удалось выйти из поездки"
                                 }
+                                isLoading = false
                             }
                         }
                         showLeaveDialog = false
@@ -279,7 +397,9 @@ fun ParticipantsTab(
                     onClick = { showLeaveDialog = false },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                    border = ButtonDefaults.outlinedButtonBorder(
+                        enabled = true
+                    ).copy(
                         width = 1.dp
                     )
                 ) {
@@ -294,15 +414,11 @@ fun ParticipantsTab(
         )
     }
 }
-
-private fun getMockParticipantStatuses(participants: List<User>, currentUserPhone: String): Map<String, ConfirmationStatus> {
-    return participants.associate { participant ->
-        val status = when {
-            participant.phone == currentUserPhone -> ConfirmationStatus.ACCEPTED
-            participants.indexOf(participant) == 1 && participants.size > 1 -> ConfirmationStatus.PENDING
-            participants.indexOf(participant) == 2 && participants.size > 2 -> ConfirmationStatus.REJECTED
-            else -> ConfirmationStatus.PENDING
-        }
-        participant.id to status
+private fun String?.toConfirmationStatus(): ConfirmationStatus =
+    when (this?.uppercase(Locale.getDefault())) {
+        "INVITED" -> ConfirmationStatus.PENDING
+        "ACCEPTED" -> ConfirmationStatus.ACCEPTED
+        "REJECTED" -> ConfirmationStatus.REJECTED
+        "LEAVE" -> ConfirmationStatus.LEFT
+        else -> ConfirmationStatus.PENDING
     }
-}
