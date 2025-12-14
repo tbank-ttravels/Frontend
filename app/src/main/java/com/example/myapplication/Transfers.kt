@@ -29,13 +29,12 @@ fun TransfersTab(
     var isLoadingTransfers by remember { mutableStateOf(false) }
     var isLoadingDebts by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var refreshKey by remember { mutableStateOf(0) }
 
-    val transfers by remember(trip.id, refreshKey) {
+    val transfers by remember(trip.id) {
         derivedStateOf { tripViewModel.getTransfersForTrip(trip.id) }
     }
 
-    val allParticipantBalances by remember(trip.id, refreshKey) {
+    val allParticipantBalances by remember(trip.id) {
         derivedStateOf { tripViewModel.calculateParticipantBalances(trip.id) }
     }
     
@@ -50,17 +49,21 @@ fun TransfersTab(
         trip.participants.firstOrNull { it.phone == currentUserPhone }?.id ?: ""
     }
     
-    // Фильтруем баланс текущего пользователя
+    // Фильтруем баланс текущего пользователя - показываем только других участников, кому должен текущий пользователь (отрицательные балансы)
     val participantBalances = remember(allParticipantBalances, currentUserId) {
         if (currentUserId.isNotBlank()) {
-            allParticipantBalances.filterKeys { it != currentUserId }
+            // Исключаем собственный баланс и показываем только участников с отрицательным балансом (кому должен текущий пользователь)
+            allParticipantBalances.filter { (userId, balance) ->
+                userId != currentUserId && balance < 0
+            }
         } else {
-            allParticipantBalances
+            // Если не удалось определить текущего пользователя, показываем всех с отрицательным балансом
+            allParticipantBalances.filter { (_, balance) -> balance < 0 }
         }
     }
 
-    // Загрузка переводов - обновляется при изменении trip.id или refreshKey
-    LaunchedEffect(trip.id, refreshKey) {
+    // Загрузка переводов
+    LaunchedEffect(trip.id) {
         isLoadingTransfers = true
         errorMessage = null
         when (val res = backend.getTransfers(trip.id.toLong())) {
@@ -83,8 +86,8 @@ fun TransfersTab(
         isLoadingTransfers = false
     }
 
-    // Загрузка долгов - обновляется при изменении trip.id или refreshKey
-    LaunchedEffect(trip.id, refreshKey) {
+    // Загрузка долгов
+    LaunchedEffect(trip.id) {
         isLoadingDebts = true
         when (val res = backend.getTravelDebts(trip.id.toLong())) {
             is NetworkResult.Success -> {
@@ -112,11 +115,6 @@ fun TransfersTab(
             else -> {}
         }
         isLoadingDebts = false
-    }
-    
-    // Обновляем данные при возврате на вкладку
-    LaunchedEffect(Unit) {
-        refreshKey++
     }
 
     Column(
@@ -211,7 +209,8 @@ fun BalanceCard(
                 color = Color(0xFF333333),
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-            val sortedEntries = participantBalances.entries.sortedByDescending { it.value }
+            // Сортируем по абсолютному значению баланса (от большего к меньшему)
+            val sortedEntries = participantBalances.entries.sortedByDescending { kotlin.math.abs(it.value) }
 
             sortedEntries.forEach { entry ->
                 val participantId = entry.key
@@ -231,7 +230,7 @@ fun BalanceCard(
                             Icon(
                                 imageVector = Icons.Filled.Person,
                                 contentDescription = user.name,
-                                tint = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                tint = Color(0xFFF44336),
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
@@ -243,7 +242,7 @@ fun BalanceCard(
                                     color = Color(0xFF333333)
                                 )
                                 Text(
-                                    text = if (balance >= 0) "Должны ему/ей" else "Должен/должна",
+                                    text = "Должен/должна",
                                     fontSize = 12.sp,
                                     color = Color(0xFF666666),
                                     modifier = Modifier.padding(top = 2.dp)
@@ -252,10 +251,10 @@ fun BalanceCard(
                         }
 
                         Text(
-                            text = "${balance.toInt()} ₽",
+                            text = "${kotlin.math.abs(balance).toInt()} ₽",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            color = Color(0xFFF44336)
                         )
                     }
                 }
