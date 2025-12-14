@@ -139,20 +139,38 @@ fun Add_Finance(
         val payerLong = payerId.toLongOrNull()
         if (participants.isEmpty() || payerLong == null) return emptyMap()
 
-        return when {
-            paidFor == "Только себя" -> mapOf(payerLong to amount)
+        val sharesMap = mutableMapOf<Long, Double>()
+
+        // Распределяем сумму в зависимости от выбранного варианта
+        when {
+            paidFor == "Только себя" -> {
+                // Плательщик получает всю сумму
+                sharesMap[payerLong] = amount
+            }
             paidFor.startsWith("За: ") -> {
-                val targetId = participants.firstOrNull { "За: ${it.name}" == paidFor }?.id?.toLongOrNull()
-                targetId?.let { mapOf(it to amount) } ?: mapOf(payerLong to amount)
+                // Находим участника, за которого оплачено
+                val targetName = paidFor.removePrefix("За: ")
+                val targetId = participants.firstOrNull { it.name == targetName }?.id?.toLongOrNull()
+                if (targetId != null) {
+                    sharesMap[targetId] = amount
+                } else {
+                    // Если не нашли, присваиваем плательщику
+                    sharesMap[payerLong] = amount
+                }
             }
             else -> {
+                // "Поровну между всеми" - распределяем поровну
                 val share = amount / participants.size
-                val pairs = participants.mapNotNull { participant ->
-                    participant.id.toLongOrNull()?.let { it to share }
+                participants.forEach { participant ->
+                    participant.id.toLongOrNull()?.let { id ->
+                        sharesMap[id] = share
+                    }
                 }
-                if (pairs.isNotEmpty()) pairs.toMap() else mapOf(payerLong to amount)
             }
         }
+
+        // Фильтруем нулевые доли - бэкенд не принимает 0.0
+        return sharesMap.filter { it.value > 0.0 }
     }
 
     fun updateExpensesState(updated: List<Expense>) {

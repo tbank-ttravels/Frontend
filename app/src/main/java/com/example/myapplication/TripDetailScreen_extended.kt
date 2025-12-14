@@ -291,7 +291,7 @@ fun TripDetailScreen(
                     navController = navController
                 )
                 1 -> FinanceTab(trip = trip!!, tripViewModel = tripViewModel, navController = navController)
-                2 -> ReportTab(trip = trip!!, isOwner = isOwner)
+                2 -> ReportTab(trip = trip!!)
                 3 -> AnalyticsTab(trip = trip!!)
 
             }

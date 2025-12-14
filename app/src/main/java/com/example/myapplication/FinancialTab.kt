@@ -21,13 +21,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.core_data.network.NetworkResult
 
 @Composable
 fun FinanceTab(
@@ -35,6 +41,44 @@ fun FinanceTab(
     tripViewModel: TripViewModel,
     navController: NavController
 ) {
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    
+    // Получаем расходы из ViewModel
+    val expenses by remember(trip.id) {
+        derivedStateOf { tripViewModel.getExpensesForTrip(trip.id) }
+    }
+    
+    // Загружаем расходы при открытии вкладки
+    LaunchedEffect(trip.id) {
+        when (val res = backend.getTravelExpenses(trip.id.toLong())) {
+            is NetworkResult.Success -> {
+                val mapped = res.data.expenses.map { expenseResponse ->
+                    val paidForText = when {
+                        expenseResponse.participants.isEmpty() -> "Поровну между всеми"
+                        expenseResponse.participants.size == 1 -> {
+                            val target = expenseResponse.participants.first()
+                            val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
+                            fullName?.let { "За: $it" } ?: "Только себя"
+                        }
+                        else -> "Поровну между всеми"
+                    }
+                    Expense(
+                        id = expenseResponse.id.toString(),
+                        title = expenseResponse.name,
+                        amount = expenseResponse.sum ?: 0.0,
+                        category = expenseResponse.categoryName ?: "",
+                        payerId = expenseResponse.payerId.toString(),
+                        paidFor = paidForText,
+                        date = expenseResponse.date
+                    )
+                }
+                tripViewModel.setExpenses(trip.id, mapped)
+            }
+            else -> {}
+        }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -47,7 +91,7 @@ fun FinanceTab(
             color = Color(0xFF333333)
         )
 
-        val totalExpenses = trip.expenses.sumOf { it.amount }
+        val totalExpenses = expenses.sumOf { it.amount }
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -95,7 +139,7 @@ fun FinanceTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (trip.expenses.isEmpty()) {
+        if (expenses.isEmpty()) {
             Column(
                 modifier = Modifier
                     .weight(1f)
