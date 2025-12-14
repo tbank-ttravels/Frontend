@@ -235,8 +235,8 @@ fun TransferItem(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("${fromUser?.name ?: "Неизвестный"} → ${toUser?.name ?: "Неизвестный"}")
-            Text("${transfer.amount.toInt()} ₽")
+            Text("${fromUser?.name ?: "Неизвестный"}  ${toUser?.name ?: "Неизвестный"}")
+            Text("${transfer.amount.toInt()}   ₽")
         }
     }
 }
