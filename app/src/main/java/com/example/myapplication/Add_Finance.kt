@@ -68,6 +68,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 import com.example.myapplication.TransfersTab
+import com.example.myapplication.formatDateForUi
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -149,8 +150,12 @@ fun Add_Finance(
             }
             paidFor.startsWith("За: ") -> {
                 // Находим участника, за которого оплачено
-                val targetName = paidFor.removePrefix("За: ")
-                val targetId = participants.firstOrNull { it.name == targetName }?.id?.toLongOrNull()
+                val targetName = paidFor.removePrefix("За: ").trim()
+                // Ищем участника по имени
+                val targetParticipant = participants.firstOrNull { participant ->
+                    participant.name == targetName
+                }
+                val targetId = targetParticipant?.id?.toLongOrNull()
                 if (targetId != null) {
                     sharesMap[targetId] = amount
                 } else {
@@ -159,13 +164,8 @@ fun Add_Finance(
                 }
             }
             else -> {
-                // "Поровну между всеми" - распределяем поровну
-                val share = amount / participants.size
-                participants.forEach { participant ->
-                    participant.id.toLongOrNull()?.let { id ->
-                        sharesMap[id] = share
-                    }
-                }
+                // По умолчанию - плательщик получает всю сумму
+                sharesMap[payerLong] = amount
             }
         }
 
@@ -178,28 +178,31 @@ fun Add_Finance(
         tripViewModel.setExpenses(trip.id, updated)
     }
 
-    LaunchedEffect(trip.id) {
-        isExpensesLoading = true
-        expensesError = null
-        when (val res = backend.getTravelExpenses(trip.id.toLong())) {
-            is NetworkResult.Success -> {
-                val mapped = res.data.expenses.map { it.toUi(trip.participants) }
-                expenses = mapped
-                tripViewModel.setExpenses(trip.id, mapped)
+    // Обновляем данные при возврате на вкладку "Расходы"
+    LaunchedEffect(trip.id, selectedTab) {
+        if (selectedTab == 0) { // Вкладка "Расходы"
+            isExpensesLoading = true
+            expensesError = null
+            when (val res = backend.getTravelExpenses(trip.id.toLong())) {
+                is NetworkResult.Success -> {
+                    val mapped = res.data.expenses.map { it.toUi(trip.participants) }
+                    expenses = mapped
+                    tripViewModel.setExpenses(trip.id, mapped)
+                }
+                else -> expensesError = mapError(res, "Не удалось загрузить расходы")
             }
-            else -> expensesError = mapError(res, "Не удалось загрузить расходы")
-        }
-        isExpensesLoading = false
+            isExpensesLoading = false
 
-        isCategoriesLoading = true
-        categoriesError = null
-        when (val res = backend.getCategories(trip.id.toLong())) {
-            is NetworkResult.Success -> {
-                categories = res.data.items.map { ExpenseCategory(id = it.id.toString(), name = it.name) }
+            isCategoriesLoading = true
+            categoriesError = null
+            when (val res = backend.getCategories(trip.id.toLong())) {
+                is NetworkResult.Success -> {
+                    categories = res.data.items.map { ExpenseCategory(id = it.id.toString(), name = it.name) }
+                }
+                else -> categoriesError = mapError(res, "Не удалось загрузить категории")
             }
-            else -> categoriesError = mapError(res, "Не удалось загрузить категории")
+            isCategoriesLoading = false
         }
-        isCategoriesLoading = false
     }
 
     val totalExpenses = expenses.sumOf { it.amount }
@@ -698,7 +701,7 @@ fun ExpenseItem(
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "Категория: ${expense.category} • ${expense.date}",
+                            text = "Категория: ${expense.category} • ${formatDateForUi(expense.date)}",
                             fontSize = 12.sp,
                             color = Color(0xFF999999),
                             fontWeight = FontWeight.Medium,
@@ -792,9 +795,12 @@ fun AddEditExpenseDialog(
     var showPaidForDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
 
-    val paidForOptions = remember(trip.id) {
-        val baseOptions = listOf("Только себя", "Поровну между всеми")
-        val participantOptions = trip.participants.map { "За: ${it.name}" }
+    val paidForOptions = remember(trip.id, trip.participants) {
+        val baseOptions = listOf("Только себя")
+        // Включаем всех участников, включая плательщика
+        val participantOptions = trip.participants.map { participant ->
+            "За: ${participant.name}"
+        }
         baseOptions + participantOptions
     }
 

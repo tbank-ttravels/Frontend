@@ -29,17 +29,38 @@ fun TransfersTab(
     var isLoadingTransfers by remember { mutableStateOf(false) }
     var isLoadingDebts by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableStateOf(0) }
 
-    val transfers by remember(trip.id) {
+    val transfers by remember(trip.id, refreshKey) {
         derivedStateOf { tripViewModel.getTransfersForTrip(trip.id) }
     }
 
-    val participantBalances by remember(trip.id) {
+    val allParticipantBalances by remember(trip.id, refreshKey) {
         derivedStateOf { tripViewModel.calculateParticipantBalances(trip.id) }
     }
+    
+    // Получаем phone текущего пользователя из SharedPreferences
+    val currentUserPhone = remember {
+        val prefs = context.getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.getString("user_phone", "") ?: ""
+    }
+    
+    // Находим ID текущего пользователя по phone
+    val currentUserId = remember(currentUserPhone, trip.participants) {
+        trip.participants.firstOrNull { it.phone == currentUserPhone }?.id ?: ""
+    }
+    
+    // Фильтруем баланс текущего пользователя
+    val participantBalances = remember(allParticipantBalances, currentUserId) {
+        if (currentUserId.isNotBlank()) {
+            allParticipantBalances.filterKeys { it != currentUserId }
+        } else {
+            allParticipantBalances
+        }
+    }
 
-    // Загрузка переводов
-    LaunchedEffect(trip.id) {
+    // Загрузка переводов - обновляется при изменении trip.id или refreshKey
+    LaunchedEffect(trip.id, refreshKey) {
         isLoadingTransfers = true
         errorMessage = null
         when (val res = backend.getTransfers(trip.id.toLong())) {
@@ -62,8 +83,8 @@ fun TransfersTab(
         isLoadingTransfers = false
     }
 
-    // Загрузка долгов
-    LaunchedEffect(trip.id) {
+    // Загрузка долгов - обновляется при изменении trip.id или refreshKey
+    LaunchedEffect(trip.id, refreshKey) {
         isLoadingDebts = true
         when (val res = backend.getTravelDebts(trip.id.toLong())) {
             is NetworkResult.Success -> {
@@ -91,6 +112,11 @@ fun TransfersTab(
             else -> {}
         }
         isLoadingDebts = false
+    }
+    
+    // Обновляем данные при возврате на вкладку
+    LaunchedEffect(Unit) {
+        refreshKey++
     }
 
     Column(
@@ -165,7 +191,6 @@ fun TransfersTab(
     }
 }
 
-/* ---------------- COMPONENTS ---------------- */
 
 @Composable
 fun BalanceCard(
@@ -176,48 +201,65 @@ fun BalanceCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
-
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
             Text(
-                "Баланс участников",
+                text = "Баланс участников",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
+                color = Color(0xFF333333),
                 modifier = Modifier.padding(bottom = 12.dp)
             )
+            val sortedEntries = participantBalances.entries.sortedByDescending { it.value }
 
-            participantBalances
-                .entries
-                .sortedByDescending { it.value }
-                .forEach { entry ->
-
-                    val user = trip.participants.find { it.id == entry.key }
-                    val balance = entry.value
-
-                    user?.let {
+            sortedEntries.forEach { entry ->
+                val participantId = entry.key
+                val balance = entry.value
+                val participant = trip.participants.find { it.id == participantId }
+                participant?.let { user ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Filled.Person,
-                                    null,
-                                    tint = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text(it.name)
-                            }
-
-                            Text(
-                                "${balance.toInt()} ₽",
-                                fontWeight = FontWeight.Bold,
-                                color = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            Icon(
+                                imageVector = Icons.Filled.Person,
+                                contentDescription = user.name,
+                                tint = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                modifier = Modifier.size(20.dp)
                             )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = user.name,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF333333)
+                                )
+                                Text(
+                                    text = if (balance >= 0) "Должны ему/ей" else "Должен/должна",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF666666),
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
+
+                        Text(
+                            text = "${balance.toInt()} ₽",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (balance >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        )
                     }
                 }
+            }
         }
     }
 }
@@ -239,8 +281,8 @@ fun TransferItem(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("${fromUser?.name ?: "Неизвестный"} → ${toUser?.name ?: "Неизвестный"}")
-            Text("${transfer.amount.toInt()} ₽")
+            Text("${fromUser?.name ?: "Неизвестный"} перевел  ${toUser?.name ?: "Неизвестный"}")
+            Text(" ${transfer.amount.toInt()}₽")
         }
     }
 }

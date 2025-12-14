@@ -24,7 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,14 +45,15 @@ fun FinanceTab(
 ) {
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
+    var refreshKey by remember { mutableStateOf(0) }
     
     // Получаем расходы из ViewModel
-    val expenses by remember(trip.id) {
+    val expenses by remember(trip.id, refreshKey) {
         derivedStateOf { tripViewModel.getExpensesForTrip(trip.id) }
     }
     
-    // Загружаем расходы при открытии вкладки
-    LaunchedEffect(trip.id) {
+    // Загружаем расходы при открытии вкладки - обновляется при изменении trip.id или refreshKey
+    LaunchedEffect(trip.id, refreshKey) {
         when (val res = backend.getTravelExpenses(trip.id.toLong())) {
             is NetworkResult.Success -> {
                 val mapped = res.data.expenses.map { expenseResponse ->
@@ -77,6 +80,11 @@ fun FinanceTab(
             }
             else -> {}
         }
+    }
+    
+    // Обновляем данные при возврате на вкладку
+    LaunchedEffect(Unit) {
+        refreshKey++
     }
     
     Column(
@@ -169,7 +177,7 @@ fun FinanceTab(
             }
         } else {
             Text(
-                text = "Статьи расходов (${trip.expenses.size})",
+                text = "Статьи расходов (${expenses.size})",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF333333)
@@ -183,7 +191,7 @@ fun FinanceTab(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                trip.expenses.forEach { expense ->
+                expenses.forEach { expense ->
                     ExpenseItem(expense = expense)
                 }
             }
