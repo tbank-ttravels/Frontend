@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ExpenseRequestDTO(
-    val name: String,
+    val name: String?,
     val description: String? = null,
     val payerId: Long,
     val date: String? = null,

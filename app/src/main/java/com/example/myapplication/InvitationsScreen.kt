@@ -26,7 +26,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun InvitationsScreen(
-    navController: NavHostController
+    navController: NavHostController,
+    
 ) {
     var invitations by remember { mutableStateOf<List<TripInvitation>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }

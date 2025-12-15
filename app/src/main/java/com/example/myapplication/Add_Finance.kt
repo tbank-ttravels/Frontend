@@ -64,10 +64,11 @@ import com.example.core_data.model.ExpenseResponseDTO
 import com.example.core_data.model.ExpenseUpdateRequestDTO
 import com.example.core_data.network.NetworkResult
 import com.example.core_data.util.normalizeDateToOffsetString
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.UUID
-import com.example.myapplication.TransfersTab
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -126,7 +127,8 @@ fun Add_Finance(
             category = categoryName ?: "",
             payerId = payerId.toString(),
             paidFor = paidForText,
-            date = date
+            date = date,
+            name = name
         )
     }
 
@@ -172,14 +174,18 @@ fun Add_Finance(
             else -> expensesError = mapError(res, "Не удалось загрузить расходы")
         }
         isExpensesLoading = false
-
         isCategoriesLoading = true
         categoriesError = null
-        when (val res = backend.getCategories(trip.id.toLong())) {
-            is NetworkResult.Success -> {
-                categories = res.data.items.map { ExpenseCategory(id = it.id.toString(), name = it.name) }
+        try {
+            val categoriesFromViewModel = tripViewModel.getCategoriesForTrip(trip.id)
+            categories = categoriesFromViewModel.map {
+                ExpenseCategory(id = it.id.toString(), name = it.name)
             }
-            else -> categoriesError = mapError(res, "Не удалось загрузить категории")
+            if (categories.isEmpty()) {
+                tripViewModel.loadCategoriesForTrip(trip.id)
+            }
+        } catch (e: Exception) {
+            categoriesError = "Ошибка загрузки категорий: ${e.message}"
         }
         isCategoriesLoading = false
     }
@@ -320,8 +326,8 @@ fun Add_Finance(
                             }
 
                             val request = ExpenseRequestDTO(
-                                name = expense.title,
-                                description = null,
+                                name = expense.name,
+                                description = expense.title,
                                 payerId = expense.payerId.toLong(),
                                 date = normalizeDateToOffsetString(expense.date),
                                 participantShares = shares,
@@ -391,6 +397,7 @@ fun Add_Finance(
                                 is NetworkResult.Success -> {
                                     val newCat = ExpenseCategory(id = res.data.id.toString(), name = res.data.name)
                                     categories = categories + newCat
+                                    tripViewModel.loadCategoriesForTrip(trip.id)
                                     showAddCategoryDialog = false
                                 }
                                 else -> categoriesError = mapError(res, "Не удалось добавить категорию")
@@ -632,12 +639,14 @@ fun ExpenseItem(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        Text(
-                            text = expense.title,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF333333)
-                        )
+                        expense.title?.let {
+                            Text(
+                                text = it,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF333333)
+                            )
+                        }
                         Text(
                             text = "Оплатил: $payerName",
                             fontSize = 12.sp,
@@ -773,6 +782,9 @@ fun AddEditExpenseDialog(
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showPaidForDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
+
+    val dateFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+    val currentDate = dateFormat.format(Date())
 
     val paidForOptions = remember(trip.id) {
         val baseOptions = listOf("Только себя", "Поровну между всеми")
@@ -1041,7 +1053,9 @@ fun AddEditExpenseDialog(
                             amount = amount.toDouble(),
                             category = selectedCategory,
                             payerId = selectedPayerId,
-                            paidFor = selectedPaidFor
+                            paidFor = selectedPaidFor,
+                            date = currentDate,
+                            name = title
                         )
                         onSave(newExpense)
                     }

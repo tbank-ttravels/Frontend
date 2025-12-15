@@ -14,11 +14,14 @@ fun TravelApp() {
     val navController = rememberNavController()
     val context = LocalContext.current
     val backend = remember { BackendProvider.get(context) }
+
     val userViewModel: UserViewModel = viewModel(
         factory = UserViewModel.provideFactory(backend)
     )
 
-    val tripViewModel: TripViewModel = viewModel()
+    val tripViewModel: TripViewModel = viewModel(
+        factory = TripViewModel.provideFactoryTrip(backend)
+    )
 
     NavHost(
         navController = navController,
@@ -45,14 +48,14 @@ fun TravelApp() {
         composable("welcome") {
             Welcome(
                 navController = navController,
+                userViewModel = userViewModel
             )
         }
 
         composable("main") {
             MainScreen(
                 navController = navController,
-                tripViewModel = tripViewModel,
-
+                tripViewModel = tripViewModel
             )
         }
 
@@ -67,7 +70,8 @@ fun TravelApp() {
 
         composable("invitations") {
             InvitationsScreen(
-                navController = navController
+                navController = navController,
+
             )
         }
 

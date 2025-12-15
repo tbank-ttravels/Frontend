@@ -44,7 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.example.core_data.model.TravelResponse
+import kotlinx.coroutines.launch
 import com.example.core_data.network.NetworkResult
 
 @Composable
@@ -54,60 +54,23 @@ fun TripDetailScreen(
     tripViewModel: TripViewModel,
     userViewModel: UserViewModel
 ) {
-    var trip by remember { mutableStateOf<Trip?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val tripsState by tripViewModel.trips.collectAsState()
+    val isLoading by tripViewModel.isLoading.collectAsState()
+    val error by tripViewModel.error.collectAsState()
     val userData by userViewModel.userData.collectAsState()
-    val backend = remember(context) { BackendProvider.get(context) }
+
+    val trip = remember(tripId, tripsState) {
+        tripId?.let { tripViewModel.getTripById(it) }
+    }
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Участники", "Финансы", "Отчет", "Аналитика")
 
     LaunchedEffect(tripId) {
-        if (tripId == null) return@LaunchedEffect
-        isLoading = true
-        errorMessage = null
-        when (val res = backend.getTravel(tripId.toLong())) {
-            is NetworkResult.Success -> {
-                val mapped = res.data.toTripUi()
-                tripViewModel.upsertTrip(mapped)
-                trip = mapped
-            }
-            is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
-            is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
-            is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
-            else -> errorMessage = "Не удалось загрузить поездку"
+        if (tripId != null && trip == null) {
+            tripViewModel.loadTripsFromBackend()
         }
-        if (errorMessage == null) {
-            when (val membersRes = backend.getTravelMembers(tripId.toLong())) {
-                is NetworkResult.Success -> {
-                    val members = membersRes.data.members.map {
-                        User(
-                            id = it.id.toString(),
-                            name = it.name.orEmpty(),
-                            phone = it.phone.orEmpty(),
-                            status = it.status,
-                            role = it.role
-                        )
-                    }
-                    tripViewModel.setParticipants(tripId, members)
-                    trip = trip?.copy(participants = members) ?: tripViewModel.getTripById(tripId)
-                }
-                is NetworkResult.HttpError -> errorMessage = membersRes.error?.message ?: "Ошибка ${membersRes.code}"
-                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
-                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
-                else -> errorMessage = "Не удалось загрузить участников"
-            }
-        }
-        isLoading = false
-    }
-
-    val tripsState by tripViewModel.trips.collectAsState()
-    LaunchedEffect(tripsState) {
-        if (tripId != null) {
-            trip = tripViewModel.getTripById(tripId)
-        }
-    }
-    val isOwner = remember(trip, userData) {
-        trip?.participants?.any { it.phone == userData.phone && it.role.equals("OWNER", ignoreCase = true) } == true
     }
 
     if (trip == null) {
@@ -132,6 +95,10 @@ fun TripDetailScreen(
         return
     }
 
+    val isOwner = remember(trip, userData) {
+        trip.participants.any { it.phone == userData.phone && it.role?.equals("OWNER", ignoreCase = true) == true }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -145,10 +112,6 @@ fun TripDetailScreen(
                 )
             )
     ) {
-
-        var selectedTab by remember { mutableIntStateOf(0) }
-        val tabs = listOf("Участники", "Финансы", "Отчет", "Аналитика")
-
         SecondaryTabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.Transparent,
@@ -178,7 +141,8 @@ fun TripDetailScreen(
                 trackColor = Color(0xFF70631C)
             )
         }
-        errorMessage?.let {
+
+        error?.let {
             Text(
                 text = it,
                 color = Color.Red,
@@ -204,7 +168,7 @@ fun TripDetailScreen(
                     .padding(20.dp)
             ) {
                 Text(
-                    text = trip!!.name,
+                    text = trip.name,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFF333333)
@@ -228,10 +192,10 @@ fun TripDetailScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             val dateText = buildString {
-                                append(trip!!.startDate)
-                                if (!trip!!.endDate.isNullOrBlank()) {
+                                append(trip.startDate)
+                                if (!trip.endDate.isNullOrBlank()) {
                                     append(" - ")
-                                    append(trip!!.endDate)
+                                    append(trip.endDate)
                                 }
                             }
                             Text(
@@ -244,7 +208,7 @@ fun TripDetailScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        trip!!.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                        trip.description?.takeIf { it.isNotBlank() }?.let { desc ->
                             Text(
                                 text = desc,
                                 fontSize = 14.sp,
@@ -263,7 +227,7 @@ fun TripDetailScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = "${trip!!.participants.size} участников",
+                            text = "${trip.participants.size} участников",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF4CAF50)
@@ -286,15 +250,18 @@ fun TripDetailScreen(
         ) {
             when (selectedTab) {
                 0 -> ParticipantsTab(
-                    trip = trip!!,
+                    trip = trip,
                     tripViewModel = tripViewModel,
                     navController = navController,
-                    userViewModel= userViewModel
+                    userViewModel = userViewModel
                 )
-                1 -> FinanceTab(trip = trip!!, tripViewModel = tripViewModel, navController = navController)
-                2 -> ReportTab(trip = trip!!)
-                3 -> AnalyticsTab(trip = trip!!)
-
+                1 -> FinanceTab(
+                    trip = trip,
+                    tripViewModel = tripViewModel,
+                    navController = navController
+                )
+                2 -> ReportTab(trip = trip)
+                3 -> AnalyticsTab(trip = trip)
             }
         }
 
@@ -330,10 +297,9 @@ fun TripDetailScreen(
                 )
             }
 
-
             if (isOwner) {
                 Button(
-                    onClick = { navController.navigate("edit_trip/${trip!!.id}") },
+                    onClick = { navController.navigate("edit_trip/${trip.id}") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
@@ -360,15 +326,3 @@ fun TripDetailScreen(
         }
     }
 }
-
-private fun TravelResponse.toTripUi(): Trip =
-    Trip(
-        id = id.toString(),
-        name = name,
-        description = description,
-        startDate = formatDateForUi(startDate),
-        endDate = formatDateForUi(endDate),
-        status = status,
-        participants = emptyList(),
-        expenses = emptyList()
-    )

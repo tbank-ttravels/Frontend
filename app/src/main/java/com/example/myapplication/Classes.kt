@@ -4,6 +4,12 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+data class Transfer(
+    val id: String = UUID.randomUUID().toString(),
+    val fromUserId: String,
+    val toUserId: String,
+    val amount: Double
+)
 data class TripInvitation(
     val id: String,
     val tripName: String,
@@ -47,7 +53,8 @@ data class Trip(
     val endDate: String? = null,
     val status: String? = null,
     val participants: List<User> = emptyList(),
-    val expenses: List<Expense> = emptyList()
+    val expenses: List<Expense> = emptyList(),
+    val route: String?
 )
 
 data class User(
@@ -66,10 +73,11 @@ data class CategoryAnalytics(
 )
 data class Expense(
     val id: String = UUID.randomUUID().toString(),
-    val title: String,
+    val title: String?,
     val amount: Double,
     val category: String,
     val payerId: String,
     val paidFor: String = "Только себя",
-    val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
+    val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()),
+    val name: String
 )

@@ -1,5 +1,7 @@
 package com.example.myapplication
 
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,8 +16,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
@@ -44,14 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.example.core_data.model.EditTravelRequest
-import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun EditTripScreen(
@@ -59,8 +58,6 @@ fun EditTripScreen(
     navController: NavController,
     tripViewModel: TripViewModel
 ) {
-    var trip by remember { mutableStateOf<Trip?>(null) }
-
     var tripName by remember { mutableStateOf("") }
     var tripDescription by remember { mutableStateOf("") }
     val displayFormatter = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
@@ -74,7 +71,6 @@ fun EditTripScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
 
     fun formatForDisplay(millis: Long?): String =
@@ -112,7 +108,7 @@ fun EditTripScreen(
 
     LaunchedEffect(tripId) {
         if (tripId != null) {
-            trip = tripViewModel.getTripById(tripId)
+            val trip = tripViewModel.getTripById(tripId)
             trip?.let {
                 tripName = it.name
                 tripDescription = it.description.orEmpty()
@@ -120,6 +116,10 @@ fun EditTripScreen(
                 endDateMillis = parseDisplayToMillis(it.endDate)
             }
         }
+    }
+
+    LaunchedEffect(tripViewModel.error.collectAsState().value) {
+        errorMessage = tripViewModel.error.value
     }
 
     Box(
@@ -200,6 +200,7 @@ fun EditTripScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
+
                 val dateFieldColors = TextFieldDefaults.colors(
                     disabledTextColor = Color(0xFF333333),
                     disabledIndicatorColor = Color.Gray,
@@ -260,9 +261,10 @@ fun EditTripScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = {
-                        if (tripId == null || trip == null || isSubmitting) return@Button
+                        if (tripId == null || isSubmitting) return@Button
                         when {
                             tripName.isBlank() -> {
                                 errorMessage = "Введите название"
@@ -279,34 +281,25 @@ fun EditTripScreen(
                         }
                         isSubmitting = true
                         errorMessage = null
-                        val req = EditTravelRequest(
-                            name = tripName,
-                            description = tripDescription.takeIf { it.isNotBlank() },
-                            startDate = startDateMillis?.let { isoFormatter.format(Date(it)) },
-                            endDate = endDateMillis?.let { isoFormatter.format(Date(it)) }
-                        )
+                        tripViewModel.clearError()
+
+                        val startDateStr = isoFormatter.format(Date(startDateMillis!!))
+                        val endDateStr = endDateMillis?.let { isoFormatter.format(Date(it)) }
+
                         scope.launch {
-                            when (val res = backend.editTravel(tripId.toLong(), req)) {
-                                is NetworkResult.Success -> {
-                                    val updatedTrip = Trip(
-                                        id = res.data.id.toString(),
-                                        name = res.data.name,
-                                        description = res.data.description,
-                                        startDate = formatDateForUi(res.data.startDate),
-                                        endDate = formatDateForUi(res.data.endDate),
-                                        status = res.data.status,
-                                        participants = trip?.participants.orEmpty(),
-                                        expenses = trip?.expenses.orEmpty()
-                                    )
-                                    tripViewModel.upsertTrip(updatedTrip)
-                                    navController.navigateUp()
-                                }
-                                is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
-                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
-                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
-                                else -> errorMessage = "Не удалось сохранить поездку"
-                            }
-                            isSubmitting = false
+                            val trip = tripViewModel.getTripById(tripId)
+                            val updatedTrip = Trip(
+                                id = tripId,
+                                name = tripName,
+                                description = tripDescription,
+                                startDate = formatForDisplay(startDateMillis),
+                                endDate = endDateStr?.let { formatForDisplay(endDateMillis) } ?: "",
+                                status = trip?.status,
+                                participants = trip?.participants ?: emptyList(),
+                                expenses = trip?.expenses ?: emptyList(),
+                                route = trip?.route
+                            )
+                            tripViewModel.updateTrip(updatedTrip)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -323,13 +316,14 @@ fun EditTripScreen(
                         fontSize = 16.sp
                     )
                 }
+
                 Button(
-            onClick = { navController.navigateUp() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    width = 4.dp,
-                    color = Color(0xFFFFDD2D),
+                    onClick = { navController.navigateUp() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 4.dp,
+                            color = Color(0xFFFFDD2D),
                             shape = RoundedCornerShape(16.dp)
                         ),
                     shape = RoundedCornerShape(16.dp),
@@ -340,13 +334,21 @@ fun EditTripScreen(
                 ) {
                     Text(
                         "Отмена",
-                        fontWeight = FontWeight.ExtraBold, fontSize = 16.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
                     )
                 }
             }
         }
     }
+
+    LaunchedEffect(tripViewModel.error.collectAsState().value, tripViewModel.isLoading.collectAsState().value) {
+        if (!tripViewModel.isLoading.value && tripViewModel.error.value == null && isSubmitting) {
+            navController.navigateUp()
+        }
+    }
 }
+
 private fun parseDisplayToMillis(dateString: String?): Long? {
     if (dateString.isNullOrBlank()) return null
     return try {

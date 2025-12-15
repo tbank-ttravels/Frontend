@@ -1,4 +1,5 @@
 package com.example.myapplication
+
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
@@ -25,10 +26,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,23 +39,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.core_data.model.CreateTravelRequest
-import com.example.core_data.network.NetworkResult
-import com.example.myapplication.formatDateForUi
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun Create_trip(
     navController: NavController,
-    tripViewModel: TripViewModel = viewModel()
-)  {
+    tripViewModel: TripViewModel
+) {
     val context = LocalContext.current
     val displayFormatter = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     val isoFormatter = remember {
@@ -68,8 +65,6 @@ fun Create_trip(
     var endDateMillis by remember { mutableStateOf<Long?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
-    val backend = remember(context) { BackendProvider.get(context) }
-    val scope = rememberCoroutineScope()
 
     fun formatForDisplay(millis: Long?): String =
         millis?.let { displayFormatter.format(Date(it)) } ?: ""
@@ -104,6 +99,10 @@ fun Create_trip(
         ).show()
     }
 
+    LaunchedEffect(tripViewModel.error.collectAsState().value) {
+        errorMessage = tripViewModel.error.value
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -126,19 +125,14 @@ fun Create_trip(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 140.dp)
-
-
         )
-
-
-
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 700.dp)
                 .align(Alignment.BottomCenter)
-                .padding( 30.dp)
+                .padding(30.dp)
                 .border(
                     width = 2.dp,
                     color = Color.Gray,
@@ -230,8 +224,6 @@ fun Create_trip(
                     )
                 }
 
-
-
                 Spacer(modifier = Modifier.height(16.dp))
 
                 if (!errorMessage.isNullOrBlank()) {
@@ -258,37 +250,15 @@ fun Create_trip(
                             }
                             else -> {
                                 isSubmitting = true
-                                val request = CreateTravelRequest(
+                                tripViewModel.clearError()
+                                val startDateStr = isoFormatter.format(Date(startDateMillis!!))
+                                val endDateStr = endDateMillis?.let { isoFormatter.format(Date(it)) }
+                                tripViewModel.createTripViaBackend(
                                     name = travelName.trim(),
                                     description = travelDescription.takeIf { it.isNotBlank() },
-                                    startDate = isoFormatter.format(Date(startDateMillis!!)),
-                                    endDate = endDateMillis?.let { isoFormatter.format(Date(it)) }
+                                    startDate = startDateStr,
+                                    endDate = endDateStr
                                 )
-                                scope.launch {
-                                    when (val res = backend.createTravel(request)) {
-                                        is NetworkResult.Success -> {
-                                            val mapped = Trip(
-                                                id = res.data.id.toString(),
-                                                name = res.data.name,
-                                                description = res.data.description,
-                                                startDate = formatDateForUi(res.data.startDate),
-                                                endDate = formatDateForUi(res.data.endDate),
-                                                status = res.data.status,
-                                                participants = emptyList(),
-                                                expenses = emptyList()
-                                            )
-                                            tripViewModel.upsertTrip(mapped)
-                                            navController.navigate("main") {
-                                                popUpTo("create_trip") { inclusive = true }
-                                            }
-                                        }
-                                        is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
-                                        is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
-                                        is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
-                                        else -> errorMessage = "Не удалось создать поездку"
-                                    }
-                                    isSubmitting = false
-                                }
                             }
                         }
                     },
@@ -307,8 +277,6 @@ fun Create_trip(
                     )
                 }
 
-
-
                 Button(
                     onClick = { navController.navigate("main") },
                     modifier = Modifier
@@ -326,14 +294,22 @@ fun Create_trip(
                 ) {
                     Text(
                         "Список поездок",
-                        fontWeight = FontWeight.ExtraBold, fontSize = 16.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
                     )
                 }
-
-
-
             }
+        }
+    }
 
+    LaunchedEffect(tripViewModel.error.collectAsState().value, tripViewModel.isLoading.collectAsState().value) {
+        if (!tripViewModel.isLoading.value && tripViewModel.error.value == null) {
+            val trips = tripViewModel.trips.value
+            if (trips.isNotEmpty() && !isSubmitting) {
+                navController.navigate("main") {
+                    popUpTo("create_trip") { inclusive = true }
+                }
+            }
         }
     }
 }
