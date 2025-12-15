@@ -55,13 +55,23 @@ fun FinanceTab(
             is NetworkResult.Success -> {
                 val mapped = res.data.expenses.map { expenseResponse ->
                     val paidForText = when {
-                        expenseResponse.participants.isEmpty() -> "Поровну между всеми"
+                        expenseResponse.participants.isEmpty() -> "Только себя"
                         expenseResponse.participants.size == 1 -> {
                             val target = expenseResponse.participants.first()
                             val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
                             fullName?.let { "За: $it" } ?: "Только себя"
                         }
-                        else -> "Поровну между всеми"
+                        else -> {
+                            // Формируем список имен выбранных участников
+                            val names = expenseResponse.participants.mapNotNull { p ->
+                                listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
+                            }
+                            if (names.isNotEmpty()) {
+                                "За: ${names.joinToString(", ")}"
+                            } else {
+                                "За участников"
+                            }
+                        }
                     }
                     Expense(
                         id = expenseResponse.id.toString(),
