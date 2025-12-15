@@ -6,8 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.core_data.network.NetworkResult
+import kotlin.math.abs
 
 @Composable
 fun TransfersTab(
@@ -28,43 +27,29 @@ fun TransfersTab(
 ) {
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
+    var transfers by remember { mutableStateOf<List<Transfer>>(emptyList()) }
+    var allParticipantBalances by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     var isLoadingTransfers by remember { mutableStateOf(false) }
     var isLoadingDebts by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val transfers by remember(trip.id) {
-        derivedStateOf { tripViewModel.getTransfersForTrip(trip.id) }
-    }
-
-    val allParticipantBalances by remember(trip.id) {
-        derivedStateOf { tripViewModel.calculateParticipantBalances(trip.id) }
-    }
-    
-    // Получаем phone текущего пользователя из SharedPreferences
     val currentUserPhone = remember {
         val prefs = context.getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
         prefs.getString("user_phone", "") ?: ""
     }
-    
-    // Находим ID текущего пользователя по phone
+
     val currentUserId = remember(currentUserPhone, trip.participants) {
         trip.participants.firstOrNull { it.phone == currentUserPhone }?.id ?: ""
     }
-    
-    // Фильтруем баланс - показываем всех участников с ненулевым балансом (исключая текущего пользователя)
+
     val participantBalances = remember(allParticipantBalances, currentUserId) {
         if (currentUserId.isNotBlank()) {
-            // Исключаем собственный баланс и показываем всех участников с ненулевым балансом
-            allParticipantBalances.filter { (userId, balance) ->
-                userId != currentUserId && balance != 0.0
-            }
+            allParticipantBalances.filter { (userId, balance) -> userId != currentUserId && balance != 0.0 }
         } else {
-            // Если не удалось определить текущего пользователя, показываем всех с ненулевым балансом
             allParticipantBalances.filter { (_, balance) -> balance != 0.0 }
         }
     }
 
-    // Загрузка переводов
     LaunchedEffect(trip.id) {
         isLoadingTransfers = true
         errorMessage = null
@@ -78,6 +63,7 @@ fun TransfersTab(
                         amount = it.sum
                     )
                 }
+                transfers = mappedTransfers
                 tripViewModel.setTransfers(trip.id, mappedTransfers)
             }
             is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
@@ -88,45 +74,18 @@ fun TransfersTab(
         isLoadingTransfers = false
     }
 
-    // Загрузка долгов
     LaunchedEffect(trip.id) {
         isLoadingDebts = true
         when (val res = backend.getTravelDebts(trip.id.toLong())) {
             is NetworkResult.Success -> {
                 val balances = mutableMapOf<String, Double>()
-                
-                // Фильтруем только участников со статусом ACCEPTED
-                val acceptedParticipants = trip.participants.filter { 
-                    it.status?.equals("ACCEPTED", ignoreCase = true) == true 
-                }
+                val acceptedParticipants = trip.participants.filter { it.status?.equals("ACCEPTED", true) == true }
+                acceptedParticipants.forEach { balances[it.id] = 0.0 }
 
-                // Инициализируем всех ACCEPTED участников с нулевым балансом
-                acceptedParticipants.forEach { participant ->
-                    balances[participant.id] = 0.0
-                }
+                res.data.debts.forEach { balances[it.user.id.toString()] = (balances[it.user.id.toString()] ?: 0.0) + (it.totalAmount ?: 0.0) }
+                res.data.creditors.forEach { balances[it.user.id.toString()] = (balances[it.user.id.toString()] ?: 0.0) - (it.totalAmount ?: 0.0) }
 
-                // debts - кому должна я (список тех, кому я должна)
-                // creditors - кто должен мне (список тех, кто должен мне)
-                // В контексте баланса участников относительно текущего пользователя:
-                // Если debts содержит пользователя X с суммой Y, это означает что я должна X сумму Y
-                //   Значит, X имеет положительный баланс +Y (X должен получить от меня Y)
-                // Если creditors содержит пользователя X с суммой Y, это означает что X должен мне сумму Y
-                //   Значит, X имеет отрицательный баланс -Y (X должен мне Y)
-                
-                // Обрабатываем долги (debts) - те, кому должна я
-                res.data.debts.forEach {
-                    val userId = it.user.id.toString()
-                    // Если я должна X сумму Y, то X имеет положительный баланс +Y
-                    balances[userId] = (balances[userId] ?: 0.0) + (it.totalAmount ?: 0.0)
-                }
-
-                // Обрабатываем кредиторов (creditors) - кто должен мне
-                res.data.creditors.forEach {
-                    val userId = it.user.id.toString()
-                    // Если X должен мне сумму Y, то X имеет отрицательный баланс -Y
-                    balances[userId] = (balances[userId] ?: 0.0) - (it.totalAmount ?: 0.0)
-                }
-
+                allParticipantBalances = balances
                 tripViewModel.setParticipantBalances(trip.id, balances)
             }
             else -> {}
@@ -134,11 +93,7 @@ fun TransfersTab(
         isLoadingDebts = false
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -147,11 +102,7 @@ fun TransfersTab(
         ) {
             Text("Переводы", fontSize = 28.sp)
 
-            // Фильтруем только ACCEPTED участников для переводов
-            val acceptedParticipants = trip.participants.filter { 
-                it.status?.equals("ACCEPTED", ignoreCase = true) == true 
-            }
-            
+            val acceptedParticipants = trip.participants.filter { it.status?.equals("ACCEPTED", true) == true }
             if (acceptedParticipants.size >= 2) {
                 Button(
                     onClick = { navController.navigate("add_transfer/${trip.id}") },
@@ -175,23 +126,14 @@ fun TransfersTab(
                 CircularProgressIndicator(color = Color(0xFFFFDD2D))
             }
         } else {
-
             if (participantBalances.isNotEmpty()) {
                 BalanceCard(participantBalances, trip)
                 Spacer(Modifier.height(16.dp))
             }
 
             if (transfers.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Filled.CompareArrows,
-                        null,
-                        modifier = Modifier.size(64.dp),
-                        tint = Color(0xFFBDBDBD)
-                    )
+                Column(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.CompareArrows, null, modifier = Modifier.size(64.dp), tint = Color(0xFFBDBDBD))
                     Spacer(Modifier.height(16.dp))
                     Text("Переводы пока не добавлены", fontSize = 18.sp)
                 }
@@ -205,27 +147,16 @@ fun TransfersTab(
             }
         }
 
-        errorMessage?.let {
-            Text(it, color = Color.Red, fontSize = 12.sp)
-        }
+        errorMessage?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
     }
 }
 
-
 @Composable
-fun BalanceCard(
-    participantBalances: Map<String, Double>,
-    trip: Trip
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+fun BalanceCard(participantBalances: Map<String, Double>, trip: Trip) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Баланс участников",
+                "Баланс участников",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF333333),
@@ -233,172 +164,67 @@ fun BalanceCard(
             )
 
             val iOweTo = participantBalances.filter { it.value > 0 }.entries.sortedByDescending { it.value }
-            val oweToMe = participantBalances.filter { it.value < 0 }.entries.sortedByDescending { kotlin.math.abs(it.value) }
-            
+            val oweToMe = participantBalances.filter { it.value < 0 }.entries.sortedByDescending { abs(it.value) }
 
             if (iOweTo.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowDownward,
-                        contentDescription = null,
-                        tint = Color(0xFF4CAF50),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Я должен/должна",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF4CAF50)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Icon(Icons.Filled.ArrowDownward, null, tint = Color(0xFF4CAF50), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Я должен/должна", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF4CAF50))
                 }
-                
-                iOweTo.forEach { entry ->
-                    val participantId = entry.key
-                    val balance = entry.value
-                    val participant = trip.participants.find { it.id == participantId }
-                    participant?.let { user ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Person,
-                                    contentDescription = user.name,
-                                    tint = Color(0xFF4CAF50),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = user.name,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
-                                )
-                            }
-                            Text(
-                                text = "${balance.toInt()} ₽",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF4CAF50)
-                            )
-                        }
-                    }
+                iOweTo.forEach { (id, value) ->
+                    val user = trip.participants.find { it.id == id } ?: return@forEach
+                    BalanceRow(user.name, value, true)
                 }
-                
-                if (oweToMe.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+                if (oweToMe.isNotEmpty()) Spacer(Modifier.height(16.dp))
             }
-            
-            // Секция "Кто должен мне"
+
             if (oweToMe.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.ArrowUpward,
-                        contentDescription = null,
-                        tint = Color(0xFFF44336),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Должны мне",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFF44336)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Icon(Icons.Filled.ArrowUpward, null, tint = Color(0xFFF44336), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Должны мне", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF44336))
                 }
-                
-                oweToMe.forEach { entry ->
-                    val participantId = entry.key
-                    val balance = entry.value
-                    val participant = trip.participants.find { it.id == participantId }
-                    participant?.let { user ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp, horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Person,
-                                    contentDescription = user.name,
-                                    tint = Color(0xFFF44336),
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = user.name,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color(0xFF333333)
-                                )
-                            }
-                            Text(
-                                text = "${kotlin.math.abs(balance).toInt()} ₽",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFF44336)
-                            )
-                        }
-                    }
+                oweToMe.forEach { (id, value) ->
+                    val user = trip.participants.find { it.id == id } ?: return@forEach
+                    BalanceRow(user.name, value, false)
                 }
             }
-            
-            // Если нет балансов
+
             if (iOweTo.isEmpty() && oweToMe.isEmpty()) {
-                Text(
-                    text = "Нет задолженностей",
-                    fontSize = 14.sp,
-                    color = Color(0xFF999999),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+                Text("Нет задолженностей", fontSize = 14.sp, color = Color(0xFF999999), modifier = Modifier.padding(vertical = 8.dp))
             }
         }
     }
 }
 
 @Composable
-fun TransferItem(
-    transfer: Transfer,
-    trip: Trip,
-    tripViewModel: TripViewModel
-) {
+private fun BalanceRow(name: String, value: Double, positive: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp, horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(Icons.Filled.Person, contentDescription = name, tint = if (positive) Color(0xFF4CAF50) else Color(0xFFF44336), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(name, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Color(0xFF333333))
+        }
+        Text("${abs(value).toInt()} ₽", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = if (positive) Color(0xFF4CAF50) else Color(0xFFF44336))
+    }
+}
+
+@Composable
+fun TransferItem(transfer: Transfer, trip: Trip, tripViewModel: TripViewModel) {
     val fromUser = trip.participants.find { it.id == transfer.fromUserId }
     val toUser = trip.participants.find { it.id == transfer.toUserId }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("${fromUser?.name ?: "Неизвестный"} перевел  ${toUser?.name ?: "Неизвестный"}")
-            Text(" ${transfer.amount.toInt()}₽")
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${fromUser?.name ?: "Неизвестный"} перевел ${toUser?.name ?: "Неизвестный"}")
+            Text("${transfer.amount.toInt()} ₽")
         }
     }
 }
