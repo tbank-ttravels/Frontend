@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,17 +19,20 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +45,7 @@ import androidx.navigation.NavController
 import com.example.core_data.network.NetworkResult
 import java.util.UUID
 import kotlin.math.absoluteValue
+import kotlinx.coroutines.launch
 
 @Composable
 fun TransfersScreen(
@@ -50,10 +55,14 @@ fun TransfersScreen(
 ) {
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
     var transfers by remember { mutableStateOf<List<Transfer>>(emptyList()) }
     var participantBalances by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var editingTransfer by remember { mutableStateOf<Transfer?>(null) }
+    var editAmount by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     LaunchedEffect(trip.id) {
         isLoading = true
@@ -222,11 +231,99 @@ fun TransfersScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(transfers) { transfer ->
-                    TransferItem(transfer, trip)
+                    TransferItem(
+                        transfer = transfer,
+                        trip = trip,
+                        onClick = {
+                            editingTransfer = transfer
+                            editAmount = transfer.amount.toString()
+                            errorMessage = null
+                        }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
+    }
+
+    editingTransfer?.let { transfer ->
+        AlertDialog(
+            onDismissRequest = { if (!isSubmitting) editingTransfer = null },
+            title = { Text("Редактировать перевод") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val fromUser = trip.participants.find { it.id == transfer.fromUserId }?.name ?: "Неизвестный"
+                    val toUser = trip.participants.find { it.id == transfer.toUserId }?.name ?: "Неизвестный"
+                    Text("От: $fromUser\nКому: $toUser")
+                    OutlinedTextField(
+                        value = editAmount,
+                        onValueChange = { newValue ->
+                            if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
+                                editAmount = newValue
+                            }
+                        },
+                        label = { Text("Сумма") },
+                        singleLine = true
+                    )
+                    if (!errorMessage.isNullOrBlank()) {
+                        Text(errorMessage ?: "", color = Color.Red)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val amountVal = editAmount.toDoubleOrNull()
+                        if (amountVal == null || amountVal <= 0) {
+                            errorMessage = "Введите корректную сумму"
+                            return@Button
+                        }
+                        errorMessage = null
+                        isSubmitting = true
+                        val travelId = trip.id.toLongOrNull()
+                        val transferId = transfer.id.toLongOrNull()
+                        if (travelId == null || transferId == null) {
+                            errorMessage = "Некорректные данные перевода"
+                            isSubmitting = false
+                            return@Button
+                        }
+                        scope.launch {
+                            when (val res = backend.editTransfer(travelId, transferId, com.example.core_data.model.EditTransferRequest(amountVal))) {
+                                is NetworkResult.Success -> {
+                                    val updated = transfers.map {
+                                        if (it.id == transfer.id) it.copy(amount = amountVal) else it
+                                    }
+                                    transfers = updated
+                                    tripViewModel.setTransfers(trip.id, updated)
+                                    editingTransfer = null
+                                }
+                                is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
+                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                else -> errorMessage = "Не удалось обновить перевод"
+                            }
+                            isSubmitting = false
+                        }
+                    },
+                    enabled = !isSubmitting
+                ) {
+                    Text(if (isSubmitting) "Сохраняю..." else "Сохранить")
+                }
+            },
+            dismissButton = {
+                Button(
+                    onClick = { if (!isSubmitting) editingTransfer = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF5F5F5),
+                        contentColor = Color(0xFF333333)
+                    ),
+                    enabled = !isSubmitting
+                ) {
+                    Text("Отмена")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 
@@ -310,14 +407,16 @@ fun BalanceCard(
 @Composable
 fun TransferItem(
     transfer: Transfer,
-    trip: Trip
+    trip: Trip,
+    onClick: () -> Unit = {}
 ) {
     val fromUser = trip.participants.find { it.id == transfer.fromUserId }
     val toUser = trip.participants.find { it.id == transfer.toUserId }
 
     Card(
         modifier = Modifier
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.White
