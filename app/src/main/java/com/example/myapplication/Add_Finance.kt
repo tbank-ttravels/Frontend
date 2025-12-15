@@ -299,24 +299,51 @@ fun Add_Finance(
                         }
                         val payerParticipant = acceptedParticipants.find { it.id == expense.payerId }
                         if (payerParticipant == null) {
-                            expensesError = "Плательщик должен быть участником поездки"
+                            expensesError = "Плательщик должен быть среди участников поездки"
                             return@ExpensesTab
                         }
-                    if (expense.recipientAmounts.isEmpty()) {
-                        expensesError = "Укажите участников для траты"
-                        return@ExpensesTab
-                    }
-                    val shares = buildParticipantShares(
-                        recipients = expense.recipientAmounts
-                    )
+                        if (expense.recipientAmounts.isEmpty()) {
+                            expensesError = "Нет участников в расходе"
+                            return@ExpensesTab
+                        }
+                        val shares = buildParticipantShares(
+                            recipients = expense.recipientAmounts
+                        )
                         val travelId = travelIdLong
                         if (travelId == null) {
                             expensesError = "Некорректный идентификатор поездки"
                             return@ExpensesTab
                         }
+                        val previousExpense = editingExpense
                         scope.launch {
                             expensesError = null
                             if (isEditing) {
+                                val expenseId = expense.id.toLong()
+                                val oldIds = previousExpense?.recipientAmounts?.keys?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+                                val newIds = shares.keys
+                                val toRemove = oldIds - newIds
+                                val toAdd = shares.filterKeys { it !in oldIds }
+
+                                if (toRemove.isNotEmpty()) {
+                                    when (val res = backend.removeParticipantsFromExpense(travelId, expenseId, toRemove.toList())) {
+                                        is NetworkResult.Success -> Unit
+                                        else -> {
+                                            expensesError = mapExpenseError(res, "Не удалось удалить участников")
+                                            return@launch
+                                        }
+                                    }
+                                }
+
+                                if (toAdd.isNotEmpty()) {
+                                    when (val res = backend.addParticipantsToExpense(travelId, expenseId, toAdd)) {
+                                        is NetworkResult.Success -> Unit
+                                        else -> {
+                                            expensesError = mapExpenseError(res, "Не удалось добавить участников")
+                                            return@launch
+                                        }
+                                    }
+                                }
+
                                 val req = ExpenseUpdateRequestDTO(
                                     name = expense.title,
                                     description = null,
@@ -325,7 +352,7 @@ fun Add_Finance(
                                     payerId = payerIdLong,
                                     participantShares = shares
                                 )
-                                when (val res = backend.updateExpense(travelId, expense.id.toLong(), req)) {
+                                when (val res = backend.updateExpense(travelId, expenseId, req)) {
                                     is NetworkResult.Success -> refreshExpenses()
                                     else -> expensesError = mapExpenseError(res, "Не удалось обновить расход")
                                 }
@@ -340,7 +367,7 @@ fun Add_Finance(
                                 )
                                 when (val res = backend.createExpense(travelId, req)) {
                                     is NetworkResult.Success -> refreshExpenses()
-                                    else -> expensesError = mapExpenseError(res, "Не удалось добавить расход")
+                                    else -> expensesError = mapExpenseError(res, "Не удалось создать расход")
                                 }
                             }
                         }
