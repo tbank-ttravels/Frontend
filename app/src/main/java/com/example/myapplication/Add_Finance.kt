@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -31,6 +33,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +72,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 import com.example.myapplication.TransfersTab
+import androidx.compose.foundation.layout.heightIn
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -132,48 +137,31 @@ fun Add_Finance(
 
     fun buildParticipantShares(
         amount: Double,
-        paidFor: String,
+        selectedParticipantIds: Set<String>,
         participants: List<User>,
         payerId: String
     ): Map<Long, Double> {
         val payerLong = payerId.toLongOrNull()
-        if (participants.isEmpty() || payerLong == null) return emptyMap()
+        if (participants.isEmpty() || payerLong == null || selectedParticipantIds.isEmpty()) return emptyMap()
 
         val sharesMap = mutableMapOf<Long, Double>()
 
-        // Распределяем сумму в зависимости от выбранного варианта
-        when {
-            paidFor == "Только себя" -> {
-                // Плательщик получает всю сумму
-                sharesMap[payerLong] = amount
-            }
-            paidFor.startsWith("За: ") -> {
-                // Находим участника, за которого оплачено
-                val targetName = paidFor.removePrefix("За: ").trim()
-                val targetParticipant = participants.firstOrNull { it.name == targetName }
-                val targetId = targetParticipant?.id?.toLongOrNull()
-                if (targetId != null) {
-                    // Участник, за которого платят, получает сумму
-                    sharesMap[targetId] = amount
-                    // Плательщик должен быть включен в shares (бэкенд требует "плательщик должен участвовать в трате")
-                    // Если плательщик не тот, за кого платят, добавляем его с минимальной положительной долей
-                    // Бэкенд сам установит правильные знаки: плательщику положительную, остальным отрицательные
-                    if (targetId != payerLong) {
-                        sharesMap[payerLong] = 0.01
-                    }
-                } else {
-                    // Если не нашли, присваиваем плательщику
-                    sharesMap[payerLong] = amount
+        // Если выбран только плательщик - он получает всю сумму
+        if (selectedParticipantIds.size == 1 && selectedParticipantIds.contains(payerId)) {
+            sharesMap[payerLong] = amount
+        } else {
+            // Распределяем сумму между выбранными участниками поровну
+            val share = amount / selectedParticipantIds.size
+            selectedParticipantIds.forEach { participantId ->
+                participantId.toLongOrNull()?.let { id ->
+                    sharesMap[id] = share
                 }
             }
-            else -> {
-                // "Поровну между всеми" - распределяем поровну
-                val share = amount / participants.size
-                participants.forEach { participant ->
-                    participant.id.toLongOrNull()?.let { id ->
-                        sharesMap[id] = share
-                    }
-                }
+            
+            // Плательщик должен быть включен в shares (бэкенд требует "плательщик должен участвовать в трате")
+            // Если плательщик не в списке выбранных, добавляем его с минимальной положительной долей
+            if (!selectedParticipantIds.contains(payerId)) {
+                sharesMap[payerLong] = 0.01
             }
         }
 
@@ -334,10 +322,25 @@ fun Add_Finance(
                                 return@launch
                             }
 
+                            // Парсим selectedParticipantIds из paidFor
+                            val selectedParticipantIds = if (expense.paidFor.startsWith("PARTICIPANT_IDS: ")) {
+                                expense.paidFor.removePrefix("PARTICIPANT_IDS: ").split(",").toSet()
+                            } else {
+                                // Обратная совместимость со старым форматом
+                                when {
+                                    expense.paidFor == "Только себя" -> setOf(expense.payerId)
+                                    expense.paidFor.startsWith("За: ") -> {
+                                        val name = expense.paidFor.removePrefix("За: ").trim()
+                                        trip.participants.firstOrNull { it.name == name }?.id?.let { setOf(it) } ?: setOf(expense.payerId)
+                                    }
+                                    else -> setOf(expense.payerId)
+                                }
+                            }
+                            
                             val shares = buildParticipantShares(
                                 amount = expense.amount,
-                                paidFor = expense.paidFor,
-                                participants = trip.participants,
+                                selectedParticipantIds = selectedParticipantIds,
+                                participants = trip.participants.filter { it.status?.equals("ACCEPTED", ignoreCase = true) == true },
                                 payerId = expense.payerId
                             )
                             if (shares.isEmpty()) {
@@ -792,19 +795,43 @@ fun AddEditExpenseDialog(
     var selectedCategory by remember {
         mutableStateOf(expense?.category ?: categories.firstOrNull()?.name ?: "")
     }
+    // Фильтруем только участников со статусом ACCEPTED
+    val acceptedParticipants = remember(trip.participants) {
+        trip.participants.filter { it.status?.equals("ACCEPTED", ignoreCase = true) == true }
+    }
+    
     var selectedPayerId by remember {
-        mutableStateOf(expense?.payerId ?: trip.participants.firstOrNull()?.id ?: "")
+        mutableStateOf(
+            expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: ""
+        )
     }
-    var selectedPaidFor by remember { mutableStateOf(expense?.paidFor ?: "Только себя") }
+    
+    // Храним выбранных участников как Set ID
+    var selectedParticipantIds by remember {
+        mutableStateOf<Set<String>>(
+            if (expense != null) {
+                // Парсим из expense.paidFor если есть
+                when {
+                    expense.paidFor.startsWith("PARTICIPANT_IDS: ") -> {
+                        expense.paidFor.removePrefix("PARTICIPANT_IDS: ").split(",").toSet()
+                    }
+                    expense.paidFor == "Только себя" -> setOf(expense.payerId)
+                    expense.paidFor.startsWith("За: ") -> {
+                        val name = expense.paidFor.removePrefix("За: ").trim()
+                        acceptedParticipants.firstOrNull { it.name == name }?.id?.let { setOf(it) } ?: setOf(expense.payerId)
+                    }
+                    else -> setOf(expense.payerId)
+                }
+            } else {
+                // По умолчанию выбираем плательщика
+                val defaultPayerId = expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: ""
+                if (defaultPayerId.isNotBlank()) setOf(defaultPayerId) else setOf()
+            }
+        )
+    }
+    
     var showCategoryDropdown by remember { mutableStateOf(false) }
-    var showPaidForDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
-
-    val paidForOptions = remember(trip.id) {
-        val baseOptions = listOf("Только себя", "Поровну между всеми")
-        val participantOptions = trip.participants.map { "За: ${it.name}" }
-        baseOptions + participantOptions
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -924,77 +951,84 @@ fun AddEditExpenseDialog(
                     }
                 }
 
-                Box(
-                    modifier = Modifier.fillMaxWidth()
+                // Выбор участников с галочками
+                Text(
+                    text = "За кого оплачено",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF666666),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFF5F5F5)
+                    )
                 ) {
-                    Column {
-                        OutlinedTextField(
-                            value = selectedPaidFor,
-                            onValueChange = {},
-                            label = { Text("За кого оплачено") },
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            enabled = false,
-                            leadingIcon = {
-                                Icon(Icons.Filled.Group, null, tint = Color(0xFF4CAF50))
-                            }
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clickable { showPaidForDropdown = true }
-                                .background(Color.Transparent)
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showPaidForDropdown,
-                        onDismissRequest = { showPaidForDropdown = false },
-                        modifier = Modifier.fillMaxWidth(0.9f)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        paidForOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        val icon = when {
-                                            option == "Только себя" -> Icons.Filled.Person
-                                            option.startsWith("За: ") -> Icons.Filled.Person
-                                            else -> Icons.Filled.Group
-                                        }
-                                        val tint = when {
-                                            option == "Только себя" -> Color(0xFF2196F3)
-                                            option.startsWith("За: ") -> Color(0xFF9C27B0)
-                                            else -> Color(0xFF4CAF50)
-                                        }
-
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = null,
-                                            tint = tint,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text(option)
-                                    }
-                                },
-                                onClick = {
-                                    selectedPaidFor = option
-                                    showPaidForDropdown = false
-                                }
+                        if (acceptedParticipants.isEmpty()) {
+                            Text(
+                                text = "Нет участников со статусом ACCEPTED",
+                                fontSize = 12.sp,
+                                color = Color(0xFF999999),
+                                modifier = Modifier.padding(8.dp)
                             )
+                        } else {
+                            acceptedParticipants.forEach { participant ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedParticipantIds = if (selectedParticipantIds.contains(participant.id)) {
+                                                selectedParticipantIds - participant.id
+                                            } else {
+                                                selectedParticipantIds + participant.id
+                                            }
+                                        }
+                                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = selectedParticipantIds.contains(participant.id),
+                                        onCheckedChange = {
+                                            selectedParticipantIds = if (it) {
+                                                selectedParticipantIds + participant.id
+                                            } else {
+                                                selectedParticipantIds - participant.id
+                                            }
+                                        },
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = Color(0xFFFFDD2D)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = participant.name,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF333333)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                if (trip.participants.isNotEmpty()) {
+                if (acceptedParticipants.isNotEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val selectedPayerName = trip.participants.find { it.id == selectedPayerId }?.name ?: "Не выбран"
+                        val selectedPayerName = acceptedParticipants.find { it.id == selectedPayerId }?.name 
+                            ?: acceptedParticipants.firstOrNull()?.name ?: "Не выбран"
 
                         Column {
                             OutlinedTextField(
@@ -1023,7 +1057,7 @@ fun AddEditExpenseDialog(
                             onDismissRequest = { showPayerDropdown = false },
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
-                            trip.participants.forEach { user ->
+                            acceptedParticipants.forEach { user ->
                                 DropdownMenuItem(
                                     text = {
                                         Row(
@@ -1049,7 +1083,7 @@ fun AddEditExpenseDialog(
                     }
                 } else {
                     Text(
-                        "Добавьте участников, чтобы указать плательщика",
+                        "Нет участников со статусом ACCEPTED",
                         color = Color(0xFF999999),
                         fontSize = 14.sp
                     )
@@ -1060,14 +1094,19 @@ fun AddEditExpenseDialog(
             Button(
                 onClick = {
                     if (title.isNotBlank() && amount.isNotBlank() && amount.toDoubleOrNull() != null &&
-                        selectedPayerId.isNotBlank() && selectedCategory.isNotBlank()) {
+                        selectedPayerId.isNotBlank() && selectedCategory.isNotBlank() &&
+                        selectedParticipantIds.isNotEmpty()) {
+                        // Сохраняем selectedParticipantIds в paidFor как строку с разделителями (для парсинга в buildParticipantShares)
+                        // Формат: "PARTICIPANT_IDS: id1,id2,id3"
+                        val paidForText = "PARTICIPANT_IDS: ${selectedParticipantIds.joinToString(",")}"
+                        
                         val newExpense = Expense(
                             id = expense?.id ?: UUID.randomUUID().toString(),
                             title = title,
                             amount = amount.toDouble(),
                             category = selectedCategory,
                             payerId = selectedPayerId,
-                            paidFor = selectedPaidFor
+                            paidFor = paidForText
                         )
                         onSave(newExpense)
                     }
@@ -1076,7 +1115,8 @@ fun AddEditExpenseDialog(
                         amount.isNotBlank() &&
                         amount.toDoubleOrNull() != null &&
                         selectedPayerId.isNotBlank() &&
-                        selectedCategory.isNotBlank(),
+                        selectedCategory.isNotBlank() &&
+                        selectedParticipantIds.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
