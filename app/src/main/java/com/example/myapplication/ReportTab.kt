@@ -23,18 +23,40 @@ import kotlinx.coroutines.launch
 @Composable
 fun ReportTab(
     trip: Trip,
-    isOwner: Boolean = false
+    isOwner: Boolean = false,
+    tripViewModel: TripViewModel? = null
 ) {
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
+
+    fun mapStatusFromBackend(status: String?): String {
+        return when (status?.uppercase()) {
+            "ACTIVE" -> "Активна"
+            "CLOSED", "STOPPED" -> "Остановлена"
+            else -> "Активна"
+        }
+    }
     
-    var tripStatus by remember { mutableStateOf(trip.status ?: "Активна") }
+    fun mapStatusToBackend(status: String): String {
+        return when (status) {
+            "Активна" -> "ACTIVE"
+            "Остановлена" -> "CLOSED"
+            else -> "ACTIVE"
+        }
+    }
+    
+    var tripStatus by remember { mutableStateOf(mapStatusFromBackend(trip.status)) }
     var showStatusDialog by remember { mutableStateOf(false) }
     var isLoadingStatus by remember { mutableStateOf(false) }
     var statusError by remember { mutableStateOf<String?>(null) }
     val statusOptions = listOf("Активна", "Остановлена")
     val totalExpenses = trip.expenses.sumOf { it.amount }
+    
+    // Обновляем статус при изменении trip
+    LaunchedEffect(trip.status) {
+        tripStatus = mapStatusFromBackend(trip.status)
+    }
     
     fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
         when (res) {
@@ -129,7 +151,8 @@ fun ReportTab(
                         }
                     }
 
-                    if (isOwner) {
+                    // Закомментировано - дублирует функционал кнопки "Изменить статус поездки"
+                    /*if (isOwner) {
                         Button(
                             onClick = { showStatusDialog = true },
                             modifier = Modifier.height(32.dp),
@@ -146,7 +169,7 @@ fun ReportTab(
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                    }
+                    }*/
                 }
             }
         }
@@ -265,7 +288,7 @@ fun ReportTab(
                 Button(
                     onClick = {
                         val newStatus = tripStatus
-                        val currentStatus = trip.status ?: "Активна"
+                        val currentStatus = mapStatusFromBackend(trip.status)
                         
                         if (newStatus != currentStatus) {
                             isLoadingStatus = true
@@ -285,6 +308,11 @@ fun ReportTab(
                                 
                                 when (result) {
                                     is NetworkResult.Success -> {
+                                        // Обновляем локальный статус после успешного сохранения
+                                        tripStatus = newStatus
+                                        // Обновляем trip в ViewModel с новым статусом
+                                        val backendStatus = mapStatusToBackend(newStatus)
+                                        tripViewModel?.updateTrip(trip.copy(status = backendStatus))
                                         showStatusDialog = false
                                     }
                                     else -> {
