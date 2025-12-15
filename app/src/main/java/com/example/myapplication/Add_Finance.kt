@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -114,14 +115,23 @@ fun Add_Finance(
 
     fun ExpenseResponseDTO.toUi(participants: List<User>): Expense {
         val paidForText = when {
-            participants.isEmpty() -> "Поровну между всеми"
+            this.participants.isEmpty() -> "Только себя"
             this.participants.size == 1 -> {
                 val target = this.participants.first()
                 val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
                 fullName?.let { "За: $it" } ?: "Только себя"
             }
-            this.participants.isEmpty() -> "Поровну между всеми"
-            else -> "Поровну между всеми"
+            else -> {
+                // Формируем список имен выбранных участников
+                val names = this.participants.mapNotNull { p ->
+                    listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
+                }
+                if (names.isNotEmpty()) {
+                    "За: ${names.joinToString(", ")}"
+                } else {
+                    "За участников"
+                }
+            }
         }
 
         return Expense(
@@ -969,22 +979,23 @@ fun AddEditExpenseDialog(
                         containerColor = Color(0xFFF5F5F5)
                     )
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (acceptedParticipants.isEmpty()) {
-                            Text(
-                                text = "Нет участников со статусом ACCEPTED",
-                                fontSize = 12.sp,
-                                color = Color(0xFF999999),
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        } else {
-                            acceptedParticipants.forEach { participant ->
+                    if (acceptedParticipants.isEmpty()) {
+                        Text(
+                            text = "Нет участников со статусом ACCEPTED",
+                            fontSize = 12.sp,
+                            color = Color(0xFF999999),
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp),
+                            contentPadding = PaddingValues(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(acceptedParticipants.size) { index ->
+                                val participant = acceptedParticipants[index]
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
