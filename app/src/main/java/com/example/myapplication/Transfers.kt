@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -315,31 +316,42 @@ fun TransferItem(
     val toUser = trip.participants.find { it.id == transfer.toUserId }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        modifier = Modifier
+            .fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 4.dp
+        )
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     text = "${fromUser?.name ?: "Неизвестный"} → ${toUser?.name ?: "Неизвестный"}",
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF1C1C1E)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Сумма",
+                    text = "Перевод",
                     fontSize = 12.sp,
-                    color = Color(0xFF666666)
+                    color = Color(0xFF8E8E93)
                 )
             }
             Text(
                 text = "${transfer.amount.toInt()} ₽",
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF333333)
+                color = Color(0xFF2E7D32)
             )
         }
     }
