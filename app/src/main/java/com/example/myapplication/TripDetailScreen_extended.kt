@@ -22,6 +22,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SecondaryTabRow
@@ -35,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -46,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.core_data.model.TravelResponse
 import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
 
 @Composable
 fun TripDetailScreen(
@@ -60,6 +64,7 @@ fun TripDetailScreen(
     val userData by userViewModel.userData.collectAsState()
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(tripId) {
         if (tripId == null) return@LaunchedEffect
@@ -109,6 +114,8 @@ fun TripDetailScreen(
     val isOwner = remember(trip, userData) {
         trip?.participants?.any { it.phone == userData.phone && it.role.equals("OWNER", ignoreCase = true) } == true
     }
+    val isClosed = trip?.status.equals("CLOSED", ignoreCase = true)
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (trip == null) {
         Box(
@@ -288,7 +295,8 @@ fun TripDetailScreen(
                 0 -> ParticipantsTab(
                     trip = trip!!,
                     tripViewModel = tripViewModel,
-                    navController = navController
+                    navController = navController,
+                    canEdit = !isClosed
                 )
                 1 -> FinanceTab(trip = trip!!, tripViewModel = tripViewModel, navController = navController)
                 2 -> ReportTab(trip = trip!!, isOwner = isOwner, tripViewModel = tripViewModel)
@@ -297,48 +305,22 @@ fun TripDetailScreen(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = { navController.navigate("main") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF5F5F5),
-                    contentColor = Color(0xFF333333)
-                ),
-                border = ButtonDefaults.outlinedButtonBorder(
-                    enabled = true
-                ).copy(
-                    width = 1.dp
-                )
+        if (isOwner) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.List,
-                    contentDescription = "Список",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Все поездки",
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-
-            if (isOwner) {
                 Button(
                     onClick = { navController.navigate("edit_trip/${trip!!.id}") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFDD2D),
+                        containerColor = if (isClosed) Color(0xFFF5F5F5) else Color(0xFFFFDD2D),
                         contentColor = Color(0xFF333333)
                     ),
+                    enabled = !isClosed,
                     elevation = ButtonDefaults.buttonElevation(
                         defaultElevation = 4.dp,
                         pressedElevation = 2.dp
@@ -351,12 +333,92 @@ fun TripDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Редактировать",
+                        if (isClosed) "Недоступно (закрыта)" else "Редактировать",
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+
+                Button(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF9A9A),
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Удалить",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Удалить")
+                }
             }
         }
+
+        Button(
+            onClick = { navController.navigate("main") },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFFF5F5F5),
+                contentColor = Color(0xFF333333)
+            ),
+            border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(width = 1.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.List,
+                contentDescription = "Список",
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Все поездки",
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+
+    if (showDeleteDialog && trip != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Удалить поездку?") },
+            text = { Text("Это действие удалит поездку без возможности восстановления.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteDialog = false
+                        scope.launch {
+                            when (backend.deleteTravel(trip!!.id.toLong())) {
+                                is NetworkResult.Success -> {
+                                    tripViewModel.deleteTrip(trip!!.id)
+                                    navController.navigate("main")
+                                }
+                                is NetworkResult.HttpError -> errorMessage = "Не удалось удалить поездку"
+                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                else -> errorMessage = "Не удалось удалить поездку"
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF44336),
+                        contentColor = Color.White
+                    )
+                ) { Text("Удалить") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDialog = false }) {
+                    Text("Отмена")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 

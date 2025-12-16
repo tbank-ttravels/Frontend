@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,7 +53,8 @@ import java.util.Locale
 fun ParticipantsTab(
     trip: Trip,
     tripViewModel: TripViewModel,
-    navController: NavController
+    navController: NavController,
+    canEdit: Boolean = true
 ) {
     val userViewModel: UserViewModel = viewModel()
     val userData by userViewModel.userData.collectAsState()
@@ -117,27 +120,29 @@ fun ParticipantsTab(
                 color = Color(0xFF333333)
             )
 
-            Button(
-                onClick = { navController.navigate("add_participant/${trip.id}") },
-                modifier = Modifier.height(40.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFFDD2D),
-                    contentColor = Color(0xFF333333)
-                ),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.PersonAdd,
-                    contentDescription = "Добавить участника",
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "Добавить",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+            if (canEdit) {
+                Button(
+                    onClick = { navController.navigate("add_participant/${trip.id}") },
+                    modifier = Modifier.height(40.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFDD2D),
+                        contentColor = Color(0xFF333333)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PersonAdd,
+                        contentDescription = "Добавить участника",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Добавить",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -219,7 +224,8 @@ fun ParticipantsTab(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 trip.participants.forEach { user ->
@@ -230,6 +236,7 @@ fun ParticipantsTab(
                         user = user,
                         confirmationStatus = status,
                         onDeleteClick = {
+                            if (!canEdit) return@ParticipantCardWithConfirmation
                             isLoading = true
                             errorMessage = null
                             scope.launch {
@@ -261,13 +268,13 @@ fun ParticipantsTab(
                             }
                         },
                         isCurrentUser = isCurrentUser,
-                        isTripCreator = isOwner
+                        isTripCreator = isOwner && canEdit
                     )
                 }
             }
         }
 
-        if (trip.participants.isNotEmpty() && isCurrentUserInTrip && !isOwner) {
+        if (trip.participants.isNotEmpty() && isCurrentUserInTrip && !isOwner && canEdit) {
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedButton(
                 onClick = { showLeaveDialog = true },
