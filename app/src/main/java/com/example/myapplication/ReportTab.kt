@@ -1,52 +1,70 @@
 package com.example.myapplication
+
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Flag
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Money
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.RadioButton
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
 
 @Composable
-fun ReportTab(trip: Trip, isOwner: Boolean) {
-    var tripStatus by remember { mutableStateOf("Активна") }
+fun ReportTab(
+    trip: Trip,
+    isOwner: Boolean = false,
+    tripViewModel: TripViewModel? = null
+) {
+    val context = LocalContext.current
+    val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
+
+    fun mapStatusFromBackend(status: String?): String {
+        return when (status?.uppercase()) {
+            "ACTIVE" -> "Активна"
+            "CLOSED", "STOPPED" -> "Остановлена"
+            else -> "Активна"
+        }
+    }
+    
+    fun mapStatusToBackend(status: String): String {
+        return when (status) {
+            "Активна" -> "ACTIVE"
+            "Остановлена" -> "CLOSED"
+            else -> "ACTIVE"
+        }
+    }
+    
+    var tripStatus by remember { mutableStateOf(mapStatusFromBackend(trip.status)) }
     var showStatusDialog by remember { mutableStateOf(false) }
+    var isLoadingStatus by remember { mutableStateOf(false) }
+    var statusError by remember { mutableStateOf<String?>(null) }
     val statusOptions = listOf("Активна", "Остановлена")
+    val totalExpenses = trip.expenses.sumOf { it.amount }
+    
+    // Обновляем статус при изменении trip
+    LaunchedEffect(trip.status) {
+        tripStatus = mapStatusFromBackend(trip.status)
+    }
+    
+    fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
+        when (res) {
+            is NetworkResult.HttpError -> res.error?.message ?: "Ошибка ${res.code}"
+            is NetworkResult.NetworkError -> "Проблемы с сетью"
+            is NetworkResult.SerializationError -> "Ошибка обработки ответа"
+            else -> defaultMessage
+        }
 
     Column(
         modifier = Modifier
@@ -65,7 +83,10 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F3F3))
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF3F3F3)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -75,18 +96,11 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
             ) {
 
                 InfoRow(
-                    icon = Icons.Filled.DateRange,
-                    title = "Продолжительность",
-                    value = "${trip.startDate} - ${trip.endDate}"
-                )
-
-                InfoRow(
                     icon = Icons.Filled.Group,
                     title = "Количество участников",
-                    value = trip.participants.size.toString()
+                    value = "${trip.participants.size} чел."
                 )
 
-                val totalExpenses = trip.expenses.sumOf { it.amount }
                 InfoRow(
                     icon = Icons.Filled.Money,
                     title = "Общие расходы",
@@ -105,23 +119,30 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Flag,
-                        contentDescription = null,
+                        contentDescription = "Статус",
                         tint = Color(0xFFFFDD2D),
                         modifier = Modifier.size(20.dp)
                     )
-
                     Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Статус поездки", fontSize = 14.sp, color = Color.Gray)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Статус поездки",
+                            fontSize = 14.sp,
+                            color = Color(0xFF666666)
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
                                 text = tripStatus,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = statusColor
+                                color = statusColor,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
@@ -130,7 +151,8 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
                         }
                     }
 
-                    if (isOwner) {
+                    // Закомментировано - дублирует функционал кнопки "Изменить статус поездки"
+                    /*if (isOwner) {
                         Button(
                             onClick = { showStatusDialog = true },
                             modifier = Modifier.height(32.dp),
@@ -147,7 +169,7 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
                                 fontWeight = FontWeight.Medium
                             )
                         }
-                    }
+                    }*/
                 }
             }
         }
@@ -164,13 +186,21 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFFEB3B),
                     contentColor = Color.Black
-                )
+                ),
+                enabled = !isLoadingStatus
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Edit,
-                    contentDescription = "Изменить статус",
-                    modifier = Modifier.size(18.dp)
-                )
+                if (isLoadingStatus) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.Black
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Изменить статус",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Изменить статус поездки",
@@ -178,50 +208,180 @@ fun ReportTab(trip: Trip, isOwner: Boolean) {
                     fontWeight = FontWeight.Medium
                 )
             }
+            
+            statusError?.let {
+                Text(
+                    text = it,
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
         }
     }
 
-    if (showStatusDialog && isOwner) {
+    if (showStatusDialog) {
         AlertDialog(
             onDismissRequest = { showStatusDialog = false },
-            title = { Text("Статус поездки") },
+            title = {
+                Text(
+                    text = "Статус поездки",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
             text = {
                 Column {
-                    statusOptions.forEach { option ->
-                        Row(
+                    statusOptions.forEach { status ->
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp)
-                                .clickable { tripStatus = option },
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (tripStatus == status) Color(0xFFE3F2FD) else Color(0xFFF5F5F5)
+                            ),
+                            onClick = {
+                                tripStatus = status
+                            }
                         ) {
-                            RadioButton(
-                                selected = tripStatus == option,
-                                onClick = { tripStatus = option }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(option)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .background(
+                                            when (status) {
+                                                "Активна" -> Color(0xFF4CAF50)
+                                                "Остановлена" -> Color(0xFFFF9800)
+                                                else -> Color(0xFF666666)
+                                            },
+                                            CircleShape
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = status,
+                                    fontSize = 16.sp,
+                                    fontWeight = if (tripStatus == status) FontWeight.Bold else FontWeight.Medium,
+                                    color = Color(0xFF333333)
+                                )
+                                if (tripStatus == status) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Icon(
+                                        imageVector = Icons.Filled.Check,
+                                        contentDescription = "Выбрано",
+                                        tint = Color(0xFFFFEB3B),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
-                Button(onClick = { showStatusDialog = false }) {
-                    Text("Сохранить")
+                Button(
+                    onClick = {
+                        val newStatus = tripStatus
+                        val currentStatus = mapStatusFromBackend(trip.status)
+                        
+                        if (newStatus != currentStatus) {
+                            isLoadingStatus = true
+                            statusError = null
+                            scope.launch {
+                                val result = when {
+                                    currentStatus == "Активна" && newStatus == "Остановлена" -> {
+                                        backend.closeTravel(trip.id.toLong())
+                                    }
+                                    currentStatus == "Остановлена" && newStatus == "Активна" -> {
+                                        backend.reopenTravel(trip.id.toLong())
+                                    }
+                                    else -> {
+                                        NetworkResult.Success(Unit)
+                                    }
+                                }
+                                
+                                when (result) {
+                                    is NetworkResult.Success -> {
+                                        // Обновляем локальный статус после успешного сохранения
+                                        tripStatus = newStatus
+                                        // Обновляем trip в ViewModel с новым статусом
+                                        val backendStatus = mapStatusToBackend(newStatus)
+                                        tripViewModel?.updateTrip(trip.copy(status = backendStatus))
+                                        showStatusDialog = false
+                                    }
+                                    else -> {
+                                        statusError = mapError(result, "Не удалось изменить статус поездки")
+                                    }
+                                }
+                                isLoadingStatus = false
+                            }
+                        } else {
+                            showStatusDialog = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFEB3B),
+                        contentColor = Color.Black
+                    ),
+                    enabled = !isLoadingStatus
+                ) {
+                    Text(if (isLoadingStatus) "Сохранение..." else "Сохранить")
                 }
-            }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showStatusDialog = false },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        width = 1.dp
+                    )
+                ) {
+                    Text("Отмена")
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = Color.White
         )
     }
 }
 
 @Composable
 fun InfoRow(icon: ImageVector, title: String, value: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = Color(0xFFFFDD2D))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = Color(0xFFFFDD2D),
+            modifier = Modifier.size(20.dp)
+        )
         Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(title, fontSize = 14.sp, color = Color.Gray)
-            Text(value, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                color = Color(0xFF666666)
+            )
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF333333),
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
     }
 }

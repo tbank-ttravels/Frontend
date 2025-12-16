@@ -1,11 +1,14 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +38,8 @@ fun AddTransferScreen(
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
+    
+    val scrollState = rememberScrollState()
 
     fun mapError(res: NetworkResult<*>, defaultMessage: String): String =
         when (res) {
@@ -47,13 +52,25 @@ fun AddTransferScreen(
     LaunchedEffect(tripId) {
         if (tripId != null) {
             trip = tripViewModel.getTripById(tripId)
-            trip?.participants?.firstOrNull()?.let {
+            // Фильтруем только участников со статусом ACCEPTED
+            val acceptedParticipants = trip?.participants?.filter { 
+                it.status?.equals("ACCEPTED", ignoreCase = true) == true 
+            } ?: emptyList()
+            
+            acceptedParticipants.firstOrNull()?.let {
                 fromUserId = it.id
             }
-            trip?.participants?.getOrNull(1)?.let {
+            acceptedParticipants.getOrNull(1)?.let {
                 toUserId = it.id
             }
         }
+    }
+    
+    // Фильтруем только ACCEPTED участников
+    val acceptedParticipants = remember(trip) {
+        trip?.participants?.filter { 
+            it.status?.equals("ACCEPTED", ignoreCase = true) == true 
+        } ?: emptyList()
     }
 
     if (trip == null) {
@@ -69,6 +86,7 @@ fun AddTransferScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text(
@@ -94,7 +112,7 @@ fun AddTransferScreen(
                     fontWeight = FontWeight.Medium
                 )
 
-                trip?.participants?.forEach { participant ->
+                acceptedParticipants.forEach { participant ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -141,7 +159,7 @@ fun AddTransferScreen(
                     fontWeight = FontWeight.Medium
                 )
 
-                trip?.participants?.forEach { participant ->
+                acceptedParticipants.forEach { participant ->
                     if (participant.id != fromUserId) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -273,5 +291,7 @@ fun AddTransferScreen(
                 Text(if (isSaving) "Сохранение..." else "Добавить")
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
