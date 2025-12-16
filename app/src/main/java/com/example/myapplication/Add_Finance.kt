@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -34,8 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,6 +70,8 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import com.example.myapplication.TransfersTab
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -883,44 +881,40 @@ fun AddEditExpenseDialog(
                 Box(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
-                        OutlinedTextField(
-                            value = selectedCategory,
-                            onValueChange = {},
-                            label = { Text("Категория") },
-                            modifier = Modifier.fillMaxWidth(),
-                            readOnly = true,
-                            enabled = false,
-                            leadingIcon = {
+                    OutlinedTextField(
+                        value = selectedCategory,
+                        onValueChange = {},
+                        label = { Text("Категория") },
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        enabled = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Category,
+                                contentDescription = null,
+                                tint = Color(0xFF757575)
+                            )
+                        },
+                        trailingIcon = {
+                            if (categories.isEmpty()) {
                                 Icon(
-                                    imageVector = Icons.Filled.Category,
-                                    contentDescription = null,
-                                    tint = Color(0xFF757575)
+                                    Icons.Filled.Warning,
+                                    "Нет категорий",
+                                    tint = Color(0xFFFF9800)
                                 )
-                            },
-                            trailingIcon = {
-                                if (categories.isEmpty()) {
-                                    Icon(
-                                        Icons.Filled.Warning,
-                                        "Нет категорий",
-                                        tint = Color(0xFFFF9800)
-                                    )
+                            }
+                        }
+                    )
+                    // Кликабельный слой на весь бокс (Что бы открывался по клику на всей области, а не ток на надпись)
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable {
+                                if (categories.isNotEmpty()) {
+                                    showCategoryDropdown = true
                                 }
                             }
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp)
-                                .clickable {
-                                    if (categories.isNotEmpty()) {
-                                        showCategoryDropdown = true
-                                    }
-                                }
-                                .background(Color.Transparent)
-                        )
-                    }
+                    )
 
                     DropdownMenu(
                         expanded = showCategoryDropdown,
@@ -1041,27 +1035,23 @@ fun AddEditExpenseDialog(
                         val selectedPayerName = acceptedParticipants.find { it.id == selectedPayerId }?.name 
                             ?: acceptedParticipants.firstOrNull()?.name ?: "Не выбран"
 
-                        Column {
-                            OutlinedTextField(
-                                value = selectedPayerName,
-                                onValueChange = {},
-                                label = { Text("Кто оплатил") },
-                                modifier = Modifier.fillMaxWidth(),
-                                readOnly = true,
-                                enabled = false,
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3))
-                                }
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp)
-                                    .clickable { showPayerDropdown = true }
-                                    .background(Color.Transparent)
-                            )
-                        }
+                        OutlinedTextField(
+                            value = selectedPayerName,
+                            onValueChange = {},
+                            label = { Text("Кто оплатил") },
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
+                            enabled = true,
+                            leadingIcon = {
+                                Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3))
+                            }
+                        )
+                        // Кликабельный слой на весь бокс (Что бы открывался по клику на всей области, а не ток на надпись)
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showPayerDropdown = true }
+                        )
 
                         DropdownMenu(
                             expanded = showPayerDropdown,
