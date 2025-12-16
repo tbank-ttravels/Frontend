@@ -119,7 +119,7 @@ fun Add_Finance(
             this.participants.size == 1 -> {
                 val target = this.participants.first()
                 val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
-                fullName?.let { "За: $it" } ?: "Только себя"
+                fullName?.let { " : $it" } ?: "Только себя"
             }
             else -> {
                 // Формируем список имен выбранных участников
@@ -127,7 +127,7 @@ fun Add_Finance(
                     listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
                 }
                 if (names.isNotEmpty()) {
-                    "За: ${names.joinToString(", ")}"
+                    " ${names.joinToString(", ")}"
                 } else {
                     "За участников"
                 }

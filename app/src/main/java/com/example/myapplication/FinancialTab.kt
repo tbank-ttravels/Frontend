@@ -59,7 +59,7 @@ fun FinanceTab(
                         expenseResponse.participants.size == 1 -> {
                             val target = expenseResponse.participants.first()
                             val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
-                            fullName?.let { "За: $it" } ?: "Только себя"
+                            fullName?.let { " $it" } ?: "Только себя"
                         }
                         else -> {
                             // Формируем список имен выбранных участников
@@ -67,7 +67,7 @@ fun FinanceTab(
                                 listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
                             }
                             if (names.isNotEmpty()) {
-                                "За: ${names.joinToString(", ")}"
+                                " ${names.joinToString(", ")}"
                             } else {
                                 "За участников"
                             }

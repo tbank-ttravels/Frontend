@@ -224,7 +224,7 @@ fun TransferItem(transfer: Transfer, trip: Trip, tripViewModel: TripViewModel) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${fromUser?.name ?: "Неизвестный"} перевел ${toUser?.name ?: "Неизвестный"}")
-            Text("${transfer.amount.toInt()} ₽")
+            Text(" ${transfer.amount.toInt()}₽")
         }
     }
 }
