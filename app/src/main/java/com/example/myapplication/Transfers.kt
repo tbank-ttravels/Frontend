@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,10 +14,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.compose.runtime.rememberCoroutineScope
+import com.example.core_data.model.EditTransferRequest
 import com.example.core_data.network.NetworkResult
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
@@ -27,11 +32,16 @@ fun TransfersTab(
 ) {
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
+    val scope = rememberCoroutineScope()
     var transfers by remember { mutableStateOf<List<Transfer>>(emptyList()) }
     var allParticipantBalances by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     var isLoadingTransfers by remember { mutableStateOf(false) }
     var isLoadingDebts by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var editingTransfer by remember { mutableStateOf<Transfer?>(null) }
+    var editAmount by remember { mutableStateOf("") }
+    var isSavingEdit by remember { mutableStateOf(false) }
+    val yellow = Color(0xFFFFDD2D)
 
     val currentUserPhone = remember {
         val prefs = context.getSharedPreferences("user_prefs", android.content.Context.MODE_PRIVATE)
@@ -60,7 +70,8 @@ fun TransfersTab(
                         id = it.id.toString(),
                         fromUserId = it.senderId.toString(),
                         toUserId = it.recipientId.toString(),
-                        amount = it.sum
+                        amount = it.sum,
+                        date = it.date.orEmpty()
                     )
                 }
                 transfers = mappedTransfers
@@ -100,7 +111,13 @@ fun TransfersTab(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Переводы", fontSize = 28.sp)
+            Text(
+                "Переводы",
+                fontSize = 28.sp,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             val acceptedParticipants = trip.participants.filter { it.status?.equals("ACCEPTED", true) == true }
             if (acceptedParticipants.size >= 2) {
@@ -140,7 +157,14 @@ fun TransfersTab(
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(transfers) {
-                        TransferItem(it, trip, tripViewModel)
+                        TransferItem(
+                            transfer = it,
+                            trip = trip,
+                            onEditClick = {
+                                editingTransfer = it
+                                editAmount = it.amount.toString()
+                            }
+                        )
                         Spacer(Modifier.height(8.dp))
                     }
                 }
@@ -148,6 +172,94 @@ fun TransfersTab(
         }
 
         errorMessage?.let { Text(it, color = Color.Red, fontSize = 12.sp) }
+    }
+
+    if (editingTransfer != null) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingEdit) editingTransfer = null
+            },
+            title = { Text("Редактировать перевод") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = editAmount,
+                        onValueChange = { editAmount = it },
+                        label = { Text("Сумма") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = yellow,
+                            focusedLabelColor = yellow,
+                            cursorColor = yellow
+                        )
+                    )
+                    editingTransfer?.date?.takeIf { it.isNotBlank() }?.let { raw ->
+                        Text(
+                            text = "Дата: ${formatDateForUi(raw)}",
+                            fontSize = 12.sp,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val tr = editingTransfer ?: return@Button
+                        val transferId = tr.id.toLongOrNull()
+                        val newSum = editAmount.toDoubleOrNull()
+                        if (transferId == null || newSum == null) {
+                            errorMessage = "Некорректная сумма или идентификатор перевода"
+                            return@Button
+                        }
+                        isSavingEdit = true
+                        errorMessage = null
+                        scope.launch {
+                            when (val res = backend.editTransfer(
+                                trip.id.toLong(),
+                                transferId,
+                                EditTransferRequest(sum = newSum)
+                            )) {
+                                is NetworkResult.Success -> {
+                                    val updated = transfers.map { existing ->
+                                        if (existing.id == res.data.id.toString()) {
+                                            existing.copy(
+                                                amount = res.data.sum,
+                                                date = res.data.date.orEmpty()
+                                            )
+                                        } else existing
+                                    }
+                                    transfers = updated
+                                    tripViewModel.setTransfers(trip.id, updated)
+                                    editingTransfer = null
+                                }
+                                is NetworkResult.HttpError -> errorMessage =
+                                    res.error?.message ?: "Ошибка ${res.code}"
+                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                else -> errorMessage = "Не удалось обновить перевод"
+                            }
+                            isSavingEdit = false
+                        }
+                    },
+                    enabled = !isSavingEdit,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = yellow,
+                        contentColor = Color(0xFF333333)
+                    )
+                ) { Text(if (isSavingEdit) "Сохранение..." else "Сохранить") }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { editingTransfer = null },
+                    enabled = !isSavingEdit,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF333333)
+                    ),
+                    border = BorderStroke(1.dp, yellow)
+                ) { Text("Отмена") }
+            }
+        )
     }
 }
 
@@ -174,7 +286,7 @@ fun BalanceCard(participantBalances: Map<String, Double>, trip: Trip) {
                 }
                 iOweTo.forEach { (id, value) ->
                     val user = trip.participants.find { it.id == id } ?: return@forEach
-                    BalanceRow(user.name, value, true)
+                    BalanceRow(displayName(user), value, true)
                 }
                 if (oweToMe.isNotEmpty()) Spacer(Modifier.height(16.dp))
             }
@@ -187,7 +299,7 @@ fun BalanceCard(participantBalances: Map<String, Double>, trip: Trip) {
                 }
                 oweToMe.forEach { (id, value) ->
                     val user = trip.participants.find { it.id == id } ?: return@forEach
-                    BalanceRow(user.name, value, false)
+                    BalanceRow(displayName(user), value, false)
                 }
             }
 
@@ -217,14 +329,46 @@ private fun BalanceRow(name: String, value: Double, positive: Boolean) {
 }
 
 @Composable
-fun TransferItem(transfer: Transfer, trip: Trip, tripViewModel: TripViewModel) {
+fun TransferItem(
+    transfer: Transfer,
+    trip: Trip,
+    onEditClick: () -> Unit
+) {
     val fromUser = trip.participants.find { it.id == transfer.fromUserId }
     val toUser = trip.participants.find { it.id == transfer.toUserId }
 
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${fromUser?.name ?: "Неизвестный"} перевел ${toUser?.name ?: "Неизвестный"}")
-            Text(" ${transfer.amount.toInt()}₽")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${displayName(fromUser)} → ${displayName(toUser)}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (transfer.date.isNotBlank()) {
+                    Text(
+                        text = formatDateForUi(transfer.date),
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(" ${transfer.amount.toInt()}₽", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(8.dp))
+                IconButton(onClick = onEditClick) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Редактировать", tint = Color(0xFF2196F3))
+                }
+            }
         }
     }
 }
+
