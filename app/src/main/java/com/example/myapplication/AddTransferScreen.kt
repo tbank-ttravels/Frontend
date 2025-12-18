@@ -113,6 +113,7 @@ fun AddTransferScreen(
                 )
 
                 acceptedParticipants.forEach { participant ->
+                    val participantName = displayName(participant)
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -135,7 +136,7 @@ fun AddTransferScreen(
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = participant.name,
+                                text = participantName,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -161,6 +162,7 @@ fun AddTransferScreen(
 
                 acceptedParticipants.forEach { participant ->
                     if (participant.id != fromUserId) {
+                        val participantName = displayName(participant)
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -183,7 +185,7 @@ fun AddTransferScreen(
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = participant.name,
+                                    text = participantName,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -268,7 +270,8 @@ fun AddTransferScreen(
                                         id = res.data.id.toString(),
                                         fromUserId = res.data.senderId.toString(),
                                         toUserId = res.data.recipientId.toString(),
-                                        amount = res.data.sum
+                                        amount = res.data.sum,
+                                        date = res.data.date.orEmpty()
                                     )
                                     val updated = tripViewModel.getTransfersForTrip(tripId) + mapped
                                     tripViewModel.setTransfers(tripId, updated)
