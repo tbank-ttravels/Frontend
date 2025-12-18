@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
@@ -55,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -126,12 +129,19 @@ fun Add_Finance(
                     listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
                 }
                 if (names.isNotEmpty()) {
-                    " За: ${names.joinToString(", ")}"
+                    "За: ${names.joinToString(", ")}"
                 } else {
                     "За участников"
                 }
             }
         }
+
+        val shares = this.participants
+            .mapNotNull { p ->
+                val share = p.share ?: return@mapNotNull null
+                p.userId.toString() to share
+            }
+            .toMap()
 
         return Expense(
             id = id.toString(),
@@ -140,7 +150,8 @@ fun Add_Finance(
             category = categoryName ?: "",
             payerId = payerId.toString(),
             paidFor = paidForText,
-            date = date
+            date = date,
+            participantShares = shares
         )
     }
 
@@ -331,47 +342,69 @@ fun Add_Finance(
                                 return@launch
                             }
 
-                            // Парсим selectedParticipantIds из paidFor
-                            val selectedParticipantIds = if (expense.paidFor.startsWith("PARTICIPANT_IDS: ")) {
-                                expense.paidFor.removePrefix("PARTICIPANT_IDS: ").split(",").toSet()
-                            } else {
-                                // Обратная совместимость со старым форматом
-                                when {
-                                    expense.paidFor == "Только себя" -> setOf(expense.payerId)
-                                    expense.paidFor.startsWith("За: ") -> {
-                                        val name = expense.paidFor.removePrefix("За: ").trim()
-                                        trip.participants.firstOrNull { it.name == name }?.id?.let { setOf(it) } ?: setOf(expense.payerId)
-                                    }
-                                    else -> setOf(expense.payerId)
-                                }
+                            val payerLong = expense.payerId.toLongOrNull()
+                            if (payerLong == null) {
+                                expensesError = "Не удалось определить плательщика"
+                                return@launch
                             }
-                            
-                            val shares = buildParticipantShares(
-                                amount = expense.amount,
-                                selectedParticipantIds = selectedParticipantIds,
-                                participants = trip.participants.filter { it.status?.equals("ACCEPTED", ignoreCase = true) == true },
-                                payerId = expense.payerId
-                            )
-                            if (shares.isEmpty()) {
-                                expensesError = "Не удалось определить доли участников"
+
+                            val shares = expense.participantShares
+                                .mapNotNull { (idStr, share) -> idStr.toLongOrNull()?.let { it to share } }
+                                .toMap()
+
+                            if (shares.isEmpty() || !shares.containsKey(payerLong) || shares.values.any { it < 0.0 }) {
+                                expensesError = "Плательщик должен участвовать в трате и у всех участников сумма должна быть ≥ 0"
                                 return@launch
                             }
 
                             val request = ExpenseRequestDTO(
                                 name = expense.title,
                                 description = null,
-                                payerId = expense.payerId.toLong(),
+                                payerId = payerLong,
                                 date = normalizeDateToOffsetString(expense.date),
                                 participantShares = shares,
                                 categoryId = categoryId
                             )
 
-                            val result = if (editingExpense != null) {
-                                val expenseId = editingExpense?.id?.toLongOrNull()
+                            val editing = editingExpense
+                            val result = if (editing != null) {
+                                val expenseId = editing.id.toLongOrNull()
                                 if (expenseId == null) {
                                     expensesError = "Не удалось определить идентификатор расхода"
                                     return@launch
                                 }
+
+                                // Добавление/удаление участников при редактировании делаем строго через специальные эндпоинты
+                                val oldShares = editing.participantShares
+                                    .mapNotNull { (idStr, share) -> idStr.toLongOrNull()?.let { it to share } }
+                                    .toMap()
+                                val oldIds = oldShares.keys
+                                val newIds = shares.keys
+
+                                val toRemove = (oldIds - newIds).toList()
+                                val toAdd = (newIds - oldIds).associateWith { id -> shares[id] ?: 0.0 }
+
+                                if (toRemove.isNotEmpty()) {
+                                    when (val res = backend.removeParticipantsFromExpense(trip.id.toLong(), expenseId, toRemove)) {
+                                        is NetworkResult.Success -> Unit
+                                        else -> {
+                                            expensesError = mapError(res, "Не удалось удалить участников из траты")
+                                            return@launch
+                                        }
+                                    }
+                                }
+
+                                if (toAdd.isNotEmpty()) {
+                                    when (val res = backend.addParticipantsToExpense(trip.id.toLong(), expenseId, toAdd)) {
+                                        is NetworkResult.Success -> Unit
+                                        else -> {
+                                            expensesError = mapError(res, "Не удалось добавить участников в трату")
+                                            return@launch
+                                        }
+                                    }
+                                }
+
+                                // Обновляем поля + суммы для текущего набора участников
                                 backend.updateExpense(
                                     travelId = trip.id.toLong(),
                                     expenseId = expenseId,
@@ -391,8 +424,8 @@ fun Add_Finance(
                             when (result) {
                                 is NetworkResult.Success -> {
                                     val mapped = result.data.toUi(trip.participants)
-                                    val updated = if (editingExpense != null) {
-                                        expenses.map { if (it.id == editingExpense?.id) mapped else it }
+                                    val updated = if (editing != null) {
+                                        expenses.map { if (it.id == editing.id) mapped else it }
                                     } else {
                                         expenses + mapped
                                     }
@@ -725,7 +758,8 @@ fun ExpenseItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Icon(
                         imageVector = paidForIcon,
@@ -734,19 +768,23 @@ fun ExpenseItem(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = " ${expense.paidFor}",
                             fontSize = 12.sp,
                             color = Color(0xFF666666),
-                            fontWeight = FontWeight.Medium
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Категория: ${expense.category} • ${expense.date}",
+                            text = "Категория: ${expense.category} • ${formatDateForUi(expense.date)}",
                             fontSize = 12.sp,
                             color = Color(0xFF999999),
                             fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(top = 2.dp)
+                            modifier = Modifier.padding(top = 2.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -824,10 +862,10 @@ fun AddEditExpenseDialog(
     onSave: (Expense) -> Unit
 ) {
     var title by remember { mutableStateOf(expense?.title ?: "") }
-    var amount by remember { mutableStateOf(expense?.amount?.toString() ?: "") }
     var selectedCategory by remember {
         mutableStateOf(expense?.category ?: categories.firstOrNull()?.name ?: "")
     }
+    val scrollState = rememberScrollState()
     // Фильтруем только участников со статусом ACCEPTED
     val acceptedParticipants = remember(trip.participants) {
         trip.participants.filter { it.status?.equals("ACCEPTED", ignoreCase = true) == true }
@@ -838,29 +876,36 @@ fun AddEditExpenseDialog(
             expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: ""
         )
     }
-    
-    // Храним выбранных участников как Set ID
+
+    // Выбранные участники и их суммы (сколько плательщик потратил за каждого)
     var selectedParticipantIds by remember {
         mutableStateOf<Set<String>>(
-            if (expense != null) {
-                // Парсим из expense.paidFor если есть
-                when {
-                    expense.paidFor.startsWith("PARTICIPANT_IDS: ") -> {
-                        expense.paidFor.removePrefix("PARTICIPANT_IDS: ").split(",").toSet()
-                    }
-                    expense.paidFor == "Только себя" -> setOf(expense.payerId)
-                    expense.paidFor.startsWith("За: ") -> {
-                        val name = expense.paidFor.removePrefix("За: ").trim()
-                        acceptedParticipants.firstOrNull { it.name == name }?.id?.let { setOf(it) } ?: setOf(expense.payerId)
-                    }
-                    else -> setOf(expense.payerId)
-                }
-            } else {
-                // По умолчанию выбираем плательщика
-                val defaultPayerId = expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: ""
-                if (defaultPayerId.isNotBlank()) setOf(defaultPayerId) else setOf()
+            when {
+                expense?.participantShares?.isNotEmpty() == true -> expense.participantShares.keys
+                expense != null -> setOf(expense.payerId)
+                selectedPayerId.isNotBlank() -> setOf(selectedPayerId)
+                else -> emptySet()
             }
         )
+    }
+    var sharesByParticipantId by remember {
+        mutableStateOf<Map<String, String>>(
+            when {
+                expense?.participantShares?.isNotEmpty() == true ->
+                    expense.participantShares.mapValues { it.value.toString() }
+                else -> emptyMap()
+            }
+        )
+    }
+
+    // Плательщик обязателен среди участников
+    LaunchedEffect(selectedPayerId) {
+        if (selectedPayerId.isNotBlank() && !selectedParticipantIds.contains(selectedPayerId)) {
+            selectedParticipantIds = selectedParticipantIds + selectedPayerId
+        }
+        if (selectedPayerId.isNotBlank() && !sharesByParticipantId.containsKey(selectedPayerId)) {
+            sharesByParticipantId = sharesByParticipantId + (selectedPayerId to "0")
+        }
     }
     
     var showCategoryDropdown by remember { mutableStateOf(false) }
@@ -877,6 +922,9 @@ fun AddEditExpenseDialog(
         },
         text = {
             Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
@@ -886,20 +934,6 @@ fun AddEditExpenseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = {
                         Icon(Icons.Filled.AttachMoney, null, tint = Color(0xFFFFDD2D))
-                    }
-                )
-
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { newValue ->
-                        if (newValue.matches(Regex("^\\d*\\.?\\d*$")) || newValue.isEmpty()) {
-                            amount = newValue
-                        }
-                    },
-                    label = { Text("Сумма (руб.)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = {
-                        Icon(Icons.Filled.AttachMoney, null)
                     }
                 )
 
@@ -1015,14 +1049,22 @@ fun AddEditExpenseDialog(
                         ) {
                             items(acceptedParticipants.size) { index ->
                                 val participant = acceptedParticipants[index]
+                                val participantName = displayName(participant)
+                                val isPayer = participant.id == selectedPayerId
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedParticipantIds = if (selectedParticipantIds.contains(participant.id)) {
-                                                selectedParticipantIds - participant.id
+                                            if (isPayer) return@clickable
+                                            val isSelected = selectedParticipantIds.contains(participant.id)
+                                            if (isSelected) {
+                                                selectedParticipantIds = selectedParticipantIds - participant.id
+                                                sharesByParticipantId = sharesByParticipantId - participant.id
                                             } else {
-                                                selectedParticipantIds + participant.id
+                                                selectedParticipantIds = selectedParticipantIds + participant.id
+                                                if (!sharesByParticipantId.containsKey(participant.id)) {
+                                                    sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
+                                                }
                                             }
                                         }
                                         .padding(vertical = 4.dp, horizontal = 8.dp),
@@ -1031,22 +1073,44 @@ fun AddEditExpenseDialog(
                                     Checkbox(
                                         checked = selectedParticipantIds.contains(participant.id),
                                         onCheckedChange = {
-                                            selectedParticipantIds = if (it) {
-                                                selectedParticipantIds + participant.id
+                                            if (isPayer) return@Checkbox
+                                            if (it) {
+                                                selectedParticipantIds = selectedParticipantIds + participant.id
+                                                if (!sharesByParticipantId.containsKey(participant.id)) {
+                                                    sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
+                                                }
                                             } else {
-                                                selectedParticipantIds - participant.id
+                                                selectedParticipantIds = selectedParticipantIds - participant.id
+                                                sharesByParticipantId = sharesByParticipantId - participant.id
                                             }
                                         },
+                                        enabled = !isPayer,
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = Color(0xFFFFDD2D)
                                         )
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = participant.name,
+                                        text = if (isPayer) "$participantName (плательщик)" else participantName,
                                         fontSize = 14.sp,
                                         color = Color(0xFF333333)
                                     )
+
+                                    Spacer(modifier = Modifier.weight(1f))
+
+                                    if (selectedParticipantIds.contains(participant.id)) {
+                                        OutlinedTextField(
+                                            value = sharesByParticipantId[participant.id].orEmpty(),
+                                            onValueChange = { v ->
+                                                if (v.matches(Regex("^\\d*\\.?\\d*$")) || v.isEmpty()) {
+                                                    sharesByParticipantId = sharesByParticipantId + (participant.id to v)
+                                                }
+                                            },
+                                            label = { Text("₽") },
+                                            singleLine = true,
+                                            modifier = Modifier.width(110.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1057,8 +1121,8 @@ fun AddEditExpenseDialog(
                     Box(
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        val selectedPayerName = acceptedParticipants.find { it.id == selectedPayerId }?.name 
-                            ?: acceptedParticipants.firstOrNull()?.name ?: "Не выбран"
+                        val payer = acceptedParticipants.find { it.id == selectedPayerId } ?: acceptedParticipants.firstOrNull()
+                        val selectedPayerName = displayName(payer) ?: "Не выбран"
 
                         OutlinedTextField(
                             value = selectedPayerName,
@@ -1084,6 +1148,7 @@ fun AddEditExpenseDialog(
                             modifier = Modifier.fillMaxWidth(0.9f)
                         ) {
                             acceptedParticipants.forEach { user ->
+                                val payerName = displayName(user)
                                 DropdownMenuItem(
                                     text = {
                                         Row(
@@ -1096,11 +1161,15 @@ fun AddEditExpenseDialog(
                                                 modifier = Modifier.size(20.dp)
                                             )
                                             Spacer(modifier = Modifier.width(12.dp))
-                                            Text(user.name)
+                                            Text(payerName)
                                         }
                                     },
                                     onClick = {
                                         selectedPayerId = user.id
+                                        selectedParticipantIds = selectedParticipantIds + user.id
+                                        if (!sharesByParticipantId.containsKey(user.id)) {
+                                            sharesByParticipantId = sharesByParticipantId + (user.id to "0")
+                                        }
                                         showPayerDropdown = false
                                     }
                                 )
@@ -1119,30 +1188,54 @@ fun AddEditExpenseDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (title.isNotBlank() && amount.isNotBlank() && amount.toDoubleOrNull() != null &&
-                        selectedPayerId.isNotBlank() && selectedCategory.isNotBlank() &&
-                        selectedParticipantIds.isNotEmpty()) {
-                        // Сохраняем selectedParticipantIds в paidFor как строку с разделителями (для парсинга в buildParticipantShares)
-                        // Формат: "PARTICIPANT_IDS: id1,id2,id3"
-                        val paidForText = "PARTICIPANT_IDS: ${selectedParticipantIds.joinToString(",")}"
-                        
-                        val newExpense = Expense(
-                            id = expense?.id ?: UUID.randomUUID().toString(),
-                            title = title,
-                            amount = amount.toDouble(),
-                            category = selectedCategory,
-                            payerId = selectedPayerId,
-                            paidFor = paidForText
-                        )
-                        onSave(newExpense)
+                    val amountValue = selectedParticipantIds.sumOf { id ->
+                        sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0
                     }
+                    val shares = selectedParticipantIds
+                        .associateWith { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
+                        // 0 тоже допустим
+                        .filterValues { it >= 0.0 }
+
+                    // paidFor для отображения (в запрос уходит participantShares)
+                    val paidForText = if (selectedParticipantIds == setOf(selectedPayerId)) {
+                        "Только себя"
+                    } else {
+                        val otherIds = selectedParticipantIds - selectedPayerId
+                        val names = acceptedParticipants
+                            .filter { it.id in otherIds }
+                            .map { u ->
+                                listOf(u.name, u.surname).filter { it.isNotBlank() }.joinToString(" ").ifBlank { u.name }
+                            }
+                        if (names.isNotEmpty()) "За: ${names.joinToString(", ")}" else "За участников"
+                    }
+
+                    val newExpense = Expense(
+                        id = expense?.id ?: UUID.randomUUID().toString(),
+                        title = title.trim(),
+                        amount = amountValue,
+                        category = selectedCategory,
+                        payerId = selectedPayerId,
+                        paidFor = paidForText,
+                        date = expense?.date ?: Expense(
+                            title = title.trim(),
+                            amount = amountValue,
+                            category = selectedCategory,
+                            payerId = selectedPayerId
+                        ).date,
+                        participantShares = shares
+                    )
+                    onSave(newExpense)
                 },
-                enabled = title.isNotBlank() &&
-                        amount.isNotBlank() &&
-                        amount.toDoubleOrNull() != null &&
-                        selectedPayerId.isNotBlank() &&
-                        selectedCategory.isNotBlank() &&
-                        selectedParticipantIds.isNotEmpty(),
+                enabled = run {
+                    if (title.isBlank() || selectedPayerId.isBlank() || selectedCategory.isBlank()) return@run false
+                    if (selectedParticipantIds.isEmpty() || !selectedParticipantIds.contains(selectedPayerId)) return@run false
+                    // Требуем, чтобы пользователь ввёл число (включая 0) для каждого выбранного участника
+                    val allValid = selectedParticipantIds.all { id ->
+                        sharesByParticipantId[id]?.toDoubleOrNull() != null
+                    }
+                    val sum = selectedParticipantIds.sumOf { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
+                    allValid && sum >= 0.0
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFFDD2D),
                     contentColor = Color(0xFF333333)
