@@ -137,9 +137,8 @@ fun Profile(
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    val displayName = listOf(userData.name, userData.surname).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "Неизвестно" }
                     Text(
-                        text = displayName,
+                        text = displayName(userData),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
