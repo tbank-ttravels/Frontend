@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -113,7 +114,7 @@ fun AuthScreen(
             color = Color(0xFF333333),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 160.dp)
+                .padding(top = 120.dp)
         )
 
         Card(
@@ -245,6 +246,8 @@ fun AuthScreen(
                 ) {
                     Text(
                         "Нет аккаунта? Зарегистрироваться",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
                         color = Color(0xFF333333)
                     )
                 }
