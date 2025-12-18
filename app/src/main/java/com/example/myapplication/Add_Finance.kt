@@ -94,6 +94,7 @@ fun Add_Finance(
     var expenses by remember { mutableStateOf(trip.expenses) }
     var categories by remember { mutableStateOf<List<ExpenseCategory>>(emptyList()) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf<ExpenseCategory?>(null) }
     var categoriesError by remember { mutableStateOf<String?>(null) }
     var isCategoriesLoading by remember { mutableStateOf(false) }
     var expensesError by remember { mutableStateOf<String?>(null) }
@@ -277,7 +278,7 @@ fun Add_Finance(
                 }
                 2 -> {
                     FloatingActionButton(
-                        onClick = { showAddCategoryDialog = true },
+                        onClick = { editingCategory = null; showAddCategoryDialog = true },
                         containerColor = Color(0xFFFFDD2D),
                         contentColor = Color(0xFF333333)
                     ) {
@@ -420,24 +421,48 @@ fun Add_Finance(
                     errorMessage = categoriesError,
                     isLoading = isCategoriesLoading,
                     showAddCategoryDialog = showAddCategoryDialog,
-                    onAddCategory = { category ->
+                    editingCategory = editingCategory,
+                    onAddOrSaveCategory = { category ->
                         if (isCategoriesLoading) return@CategoriesTab
                         categoriesError = null
                         scope.launch {
-                            when (val res = backend.createCategory(trip.id.toLong(), CreateCategoryRequest(category.name))) {
-                                is NetworkResult.Success -> {
-                                    val newCat = ExpenseCategory(id = res.data.id.toString(), name = res.data.name)
-                                    categories = categories + newCat
-                                    showAddCategoryDialog = false
+                            if (editingCategory != null) {
+                                val idLong = editingCategory?.id?.toLongOrNull()
+                                if (idLong == null) {
+                                    categoriesError = "Некорректный идентификатор категории"
+                                    return@launch
                                 }
-                                else -> categoriesError = mapError(res, "Не удалось добавить категорию")
+                                when (val res = backend.editCategory(trip.id.toLong(), idLong, com.example.core_data.model.EditCategoryRequest(category.name))) {
+                                    is NetworkResult.Success -> {
+                                        categories = categories.map { if (it.id == editingCategory?.id) it.copy(name = category.name) else it }
+                                        showAddCategoryDialog = false
+                                        editingCategory = null
+                                    }
+                                    else -> categoriesError = mapError(res, "Не удалось обновить категорию")
+                                }
+                            } else {
+                                when (val res = backend.createCategory(trip.id.toLong(), CreateCategoryRequest(category.name))) {
+                                    is NetworkResult.Success -> {
+                                        val newCat = ExpenseCategory(id = res.data.id.toString(), name = res.data.name)
+                                        categories = categories + newCat
+                                        showAddCategoryDialog = false
+                                    }
+                                    else -> categoriesError = mapError(res, "Не удалось добавить категорию")
+                                }
                             }
                         }
                     },
                     onDeleteCategory = {
                         categoriesError = "Удаление категорий пока не поддерживается"
                     },
-                    onDismissDialog = { showAddCategoryDialog = false }
+                    onEditCategory = { category ->
+                        editingCategory = category
+                        showAddCategoryDialog = true
+                    },
+                    onDismissDialog = {
+                        showAddCategoryDialog = false
+                        editingCategory = null
+                    }
                 )
             }
         }
@@ -1146,8 +1171,10 @@ fun CategoriesTab(
     errorMessage: String?,
     isLoading: Boolean,
     showAddCategoryDialog: Boolean,
-    onAddCategory: (ExpenseCategory) -> Unit,
+    editingCategory: ExpenseCategory?,
+    onAddOrSaveCategory: (ExpenseCategory) -> Unit,
     onDeleteCategory: (ExpenseCategory) -> Unit,
+    onEditCategory: (ExpenseCategory) -> Unit,
     onDismissDialog: () -> Unit
 ) {
     Column(
@@ -1204,6 +1231,7 @@ fun CategoriesTab(
                 items(categories) { category ->
                     CategoryItem(
                         category = category,
+                        onEdit = { onEditCategory(category) },
                         onDelete = { onDeleteCategory(category) }
                     )
                 }
@@ -1213,7 +1241,8 @@ fun CategoriesTab(
 
     if (showAddCategoryDialog) {
         AddCategoryDialog(
-            onAddCategory = onAddCategory,
+            editingCategory = editingCategory,
+            onAddCategory = onAddOrSaveCategory,
             onDismiss = onDismissDialog
         )
     }
@@ -1222,6 +1251,7 @@ fun CategoriesTab(
 @Composable
 fun CategoryItem(
     category: ExpenseCategory,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -1259,6 +1289,18 @@ fun CategoryItem(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF333333)
+                )
+            }
+
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Edit,
+                    contentDescription = "Редактировать",
+                    tint = Color(0xFF2196F3),
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -1313,16 +1355,18 @@ fun CategoryItem(
 
 @Composable
 fun AddCategoryDialog(
+    editingCategory: ExpenseCategory? = null,
     onAddCategory: (ExpenseCategory) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var categoryName by remember { mutableStateOf("") }
+    val isEditing = editingCategory != null
+    var categoryName by remember { mutableStateOf(editingCategory?.name ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Добавить категорию",
+                text = if (isEditing) "Редактировать категорию" else "Добавить категорию",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1346,7 +1390,9 @@ fun AddCategoryDialog(
             Button(
                 onClick = {
                     if (categoryName.isNotBlank()) {
-                        onAddCategory(ExpenseCategory(name = categoryName))
+                        val payload = editingCategory?.copy(name = categoryName)
+                            ?: ExpenseCategory(name = categoryName)
+                        onAddCategory(payload)
                     }
                 },
                 enabled = categoryName.isNotBlank(),
@@ -1355,7 +1401,7 @@ fun AddCategoryDialog(
                     contentColor = Color(0xFF333333)
                 )
             ) {
-                Text("Сохранить")
+                Text(if (isEditing) "Обновить" else "Сохранить")
             }
         },
         dismissButton = {
