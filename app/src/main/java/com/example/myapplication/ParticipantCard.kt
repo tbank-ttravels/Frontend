@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -25,6 +26,8 @@ fun  ParticipantCardWithConfirmation(
     isCurrentUser: Boolean,
     isTripCreator: Boolean
 ) {
+    val userDisplayName = displayName(user)
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -66,7 +69,7 @@ fun  ParticipantCardWithConfirmation(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = user.name.take(1).uppercase(),
+                        text = userDisplayName.take(1).uppercase(),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = when (confirmationStatus) {
@@ -87,10 +90,12 @@ fun  ParticipantCardWithConfirmation(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = user.name,
+                            text = userDisplayName,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF333333)
+                            color = Color(0xFF333333),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
