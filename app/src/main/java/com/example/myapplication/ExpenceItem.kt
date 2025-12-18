@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -28,19 +29,31 @@ fun ExpenseItem(expense: Expense) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = expense.title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF333333)
+                    color = Color(0xFF333333),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = expense.category,
+                    text = "${expense.category} • ${formatDateForUi(expense.date)}",
                     fontSize = 12.sp,
                     color = Color(0xFF666666),
                     modifier = Modifier.padding(top = 4.dp)
                 )
+                if (expense.paidFor.isNotBlank()) {
+                    Text(
+                        text = expense.paidFor,
+                        fontSize = 12.sp,
+                        color = Color(0xFF888888),
+                        modifier = Modifier.padding(top = 2.dp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
             Text(
