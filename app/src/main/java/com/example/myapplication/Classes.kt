@@ -53,6 +53,7 @@ data class Trip(
 data class User(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
+    val surname: String = "",
     val phone: String,
     val status: String? = null,
     val role: String? = null
@@ -71,5 +72,24 @@ data class Expense(
     val category: String,
     val payerId: String,
     val paidFor: String = "Только себя",
-    val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date())
+    val date: String = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()),
+    val participantShares: Map<String, Double> = emptyMap()
 )
+
+/**
+ * Формирует отображаемое имя пользователя: имя + фамилия (если есть)
+ */
+fun displayName(user: User?): String =
+    listOfNotNull(user?.name, user?.surname)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .ifBlank { user?.name ?: "Неизвестный" }
+
+/**
+ * Формирует отображаемое имя пользователя из UserData: имя + фамилия (если есть)
+ */
+fun displayName(userData: com.example.myapplication.UserViewModel.UserData?): String =
+    listOfNotNull(userData?.name, userData?.surname)
+        .filter { it.isNotBlank() }
+        .joinToString(" ")
+        .ifBlank { userData?.name ?: "Неизвестно" }
