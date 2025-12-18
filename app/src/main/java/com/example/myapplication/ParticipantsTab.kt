@@ -76,6 +76,7 @@ fun ParticipantsTab(
                     User(
                         id = it.id.toString(),
                         name = it.name.orEmpty(),
+                        surname = it.surname.orEmpty(),
                         phone = it.phone.orEmpty(),
                         status = it.status,
                         role = it.role
@@ -248,6 +249,7 @@ fun ParticipantsTab(
                                                 User(
                                                     id = it.id.toString(),
                                                     name = it.name.orEmpty(),
+                                                    surname = it.surname.orEmpty(),
                                                     phone = it.phone.orEmpty(),
                                                     status = it.status
                                                 )
@@ -363,6 +365,7 @@ fun ParticipantsTab(
                                                 User(
                                                     id = it.id.toString(),
                                                     name = it.name.orEmpty(),
+                                                    surname = it.surname.orEmpty(),
                                                     phone = it.phone.orEmpty(),
                                                     status = it.status
                                                 )
