@@ -70,9 +70,17 @@ fun EditProfileScreen(
         isLoading = true
         when (val res = BackendProvider.get(context).getCurrentUser()) {
             is NetworkResult.Success -> {
-                name = res.data.name.orEmpty()
-                surname = res.data.surname.orEmpty()
-                phone = res.data.phone.orEmpty().ifBlank { userData.phone }
+                val updatedName = res.data.name.orEmpty()
+                val updatedSurname = res.data.surname.orEmpty()
+                val updatedPhone = res.data.phone.orEmpty().ifBlank { userData.phone }
+                name = updatedName
+                surname = updatedSurname
+                phone = updatedPhone
+                userViewModel.updateUser(
+                    name = updatedName,
+                    surname = updatedSurname,
+                    phone = updatedPhone
+                )
                 errorMessage = null
             }
             is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
@@ -212,13 +220,19 @@ fun EditProfileScreen(
                             when (val res = BackendProvider.get(context).updateAccount(req)) {
                                 is NetworkResult.Success -> {
                                     successMessage = "Данные обновлены"
+                                    val requestedName = namePayload ?: name
+                                    val requestedSurname = surnamePayload ?: surname
+                                    val updatedName = res.data.name?.takeIf { it.isNotBlank() } ?: requestedName
+                                    val updatedSurname = res.data.surname?.takeIf { it.isNotBlank() } ?: requestedSurname
+                                    val updatedPhone = res.data.phone?.takeIf { it.isNotBlank() } ?: phone
                                     userViewModel.updateUser(
-                                        name = res.data.name.orEmpty(),
-                                        surname = res.data.surname.orEmpty(),
-                                        phone = res.data.phone.orEmpty()
+                                        name = updatedName,
+                                        surname = updatedSurname,
+                                        phone = updatedPhone
                                     )
-                                    name = res.data.name.orEmpty()
-                                    surname = res.data.surname.orEmpty()
+                                    name = updatedName
+                                    surname = updatedSurname
+                                    phone = updatedPhone
                                 }
                                 is NetworkResult.HttpError -> errorMessage = res.error?.message ?: "Ошибка ${res.code}"
                                 is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
