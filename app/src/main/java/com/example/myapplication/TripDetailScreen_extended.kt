@@ -44,9 +44,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.core_data.model.ExpenseResponseDTO
 import com.example.core_data.model.TravelResponse
 import com.example.core_data.network.NetworkResult
 import kotlinx.coroutines.launch
@@ -88,6 +90,7 @@ fun TripDetailScreen(
                         User(
                             id = it.id.toString(),
                             name = it.name.orEmpty(),
+                            surname = it.surname.orEmpty(),
                             phone = it.phone.orEmpty(),
                             status = it.status,
                             role = it.role
@@ -100,6 +103,26 @@ fun TripDetailScreen(
                 is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
                 is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
                 else -> errorMessage = "Не удалось загрузить участников"
+            }
+        }
+
+        if (errorMessage == null) {
+            when (val expensesRes = backend.getTravelExpenses(tripId.toLong())) {
+                is NetworkResult.Success -> {
+                    val mappedExpenses = expensesRes.data.expenses.map { it.toExpenseUi() }
+                    tripViewModel.setExpenses(tripId, mappedExpenses)
+                    // Триггерим обновление trip в StateFlow, чтобы все табы увидели новые расходы
+                    tripViewModel.getTripById(tripId)?.let { current ->
+                        tripViewModel.updateTrip(current.copy(expenses = mappedExpenses))
+                    }
+                }
+                is NetworkResult.HttpError -> {
+                    // Не блокируем экран поездки, просто покажем ошибку в шапке
+                    errorMessage = expensesRes.error?.message ?: "Ошибка ${expensesRes.code}"
+                }
+                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                else -> {}
             }
         }
         isLoading = false
@@ -334,7 +357,9 @@ fun TripDetailScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (isClosed) "Недоступно (закрыта)" else "Редактировать",
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -433,3 +458,35 @@ private fun TravelResponse.toTripUi(): Trip =
         participants = emptyList(),
         expenses = emptyList()
     )
+
+private fun ExpenseResponseDTO.toExpenseUi(): Expense {
+    val paidForText = when {
+        participants.isEmpty() -> "Только себя"
+        participants.size == 1 -> {
+            val target = participants.first()
+            val fullName = listOfNotNull(target.name, target.surname).joinToString(" ").ifBlank { null }
+            fullName?.let { "За: $it" } ?: "Только себя"
+        }
+        else -> {
+            val names = participants.mapNotNull { p ->
+                listOfNotNull(p.name, p.surname).joinToString(" ").takeIf { it.isNotBlank() }
+            }
+            if (names.isNotEmpty()) "За: ${names.joinToString(", ")}" else "За участников"
+        }
+    }
+
+    val shares = participants
+        .mapNotNull { p -> p.userId.toString().takeIf { p.share != null }?.let { it to (p.share ?: 0.0) } }
+        .toMap()
+
+    return Expense(
+        id = id.toString(),
+        title = name,
+        amount = sum ?: 0.0,
+        category = categoryName ?: "",
+        payerId = payerId.toString(),
+        paidFor = paidForText,
+        date = date,
+        participantShares = shares
+    )
+}

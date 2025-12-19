@@ -14,7 +14,8 @@ data class Transfer(
     val id: String = UUID.randomUUID().toString(),
     val fromUserId: String,
     val toUserId: String,
-    val amount: Double
+    val amount: Double,
+    val date: String = ""
 )
 
 class TripViewModel : ViewModel() {
@@ -214,7 +215,8 @@ class TripViewModel : ViewModel() {
     }
 
     fun getPayerName(tripId: String, payerId: String): String {
-        return getUserById(payerId, tripId)?.name ?: "Неизвестный"
+        val user = getUserById(payerId, tripId)
+        return displayName(user)
     }
 
     fun calculateTransfersForTrip(tripId: String): List<Transfer> {
