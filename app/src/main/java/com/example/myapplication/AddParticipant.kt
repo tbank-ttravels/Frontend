@@ -43,6 +43,8 @@ fun AddParticipantScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+    val phoneRegex = remember { Regex("^\\+?7\\d{10}$") }
+    val invalidPhoneMessage = "Введите номер в формате +7XXXXXXXXXX"
 
     val trip by remember(tripId) {
         derivedStateOf {
@@ -79,16 +81,27 @@ fun AddParticipantScreen(
 
         OutlinedTextField(
             value = phone,
-            onValueChange = { phone = it },
+            onValueChange = {
+                phone = it
+                errorMessage = null
+                successMessage = null
+            },
             label = { Text("Телефон") },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            isError = !errorMessage.isNullOrBlank()
         )
 
         if (!errorMessage.isNullOrBlank()) {
             Text(text = errorMessage.orEmpty(), color = Color.Red, fontSize = 14.sp)
+        } else {
+            Text(
+                text = "Формат: +7XXXXXXXXXX",
+                color = Color.Gray,
+                fontSize = 12.sp
+            )
         }
         if (!successMessage.isNullOrBlank()) {
             Text(text = successMessage.orEmpty(), color = Color(0xFF4CAF50), fontSize = 14.sp)
@@ -116,12 +129,17 @@ fun AddParticipantScreen(
                     if (isLoading) return@Button
                     errorMessage = null
                     successMessage = null
-                    if (phone.isBlank() || tripId == null) {
+                    val trimmed = phone.trim()
+                    if (tripId == null || trimmed.isBlank()) {
                         errorMessage = "Введите телефон"
                         return@Button
                     }
+                    if (!phoneRegex.matches(trimmed)) {
+                        errorMessage = invalidPhoneMessage
+                        return@Button
+                    }
                     isLoading = true
-                    val invite = InviteRequest(phones = listOf(phone.trim()))
+                    val invite = InviteRequest(phones = listOf(trimmed))
                     scope.launch {
                         val res = backend.inviteMembers(tripId.toLong(), invite)
                         if (res is NetworkResult.Success) {

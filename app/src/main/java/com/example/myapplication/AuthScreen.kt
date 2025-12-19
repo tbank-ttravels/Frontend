@@ -56,6 +56,9 @@ fun AuthScreen(
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var authState by remember { mutableStateOf<AuthState>(AuthState.Idle) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    val phoneRegex = remember { Regex("^\\+?7\\d{10}$") }
+    val invalidPhoneMessage = "Введите номер в формате +7XXXXXXXXXX"
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
 
@@ -86,6 +89,11 @@ fun AuthScreen(
                 delay(500)
                 navController.navigate("profile") {
                     popUpTo("auth") { inclusive = true }
+                }
+            }
+            is AuthState.Error -> {
+                if (!phoneRegex.matches(phone.trim())) {
+                    phoneError = invalidPhoneMessage
                 }
             }
             else -> Unit
@@ -154,6 +162,7 @@ fun AuthScreen(
                     value = phone,
                     onValueChange = {
                         phone = it
+                        phoneError = null
                         if (authState is AuthState.Error) {
                             authState = AuthState.Idle
                         }
@@ -161,9 +170,23 @@ fun AuthScreen(
                     label = { Text("Номер телефона", fontWeight = FontWeight.ExtraBold) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = authState is AuthState.Error
+                    isError = phoneError != null || authState is AuthState.Error
                 )
-
+                if (!phoneError.isNullOrBlank()) {
+                    Text(
+                        text = phoneError.orEmpty(),
+                        color = Color.Red,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Формат: +7XXXXXXXXXX",
+                        color = Color.Gray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = password,
@@ -210,7 +233,12 @@ fun AuthScreen(
 
                 Button(
                     onClick = {
-
+                        val trimmedPhone = phone.trim()
+                        if (!phoneRegex.matches(trimmedPhone)) {
+                            phoneError = invalidPhoneMessage
+                            return@Button
+                        }
+                        phoneError = null
                         authState = AuthState.Loading
                     },
                     modifier = Modifier.fillMaxWidth(),

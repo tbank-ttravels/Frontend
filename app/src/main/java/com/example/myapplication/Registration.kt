@@ -58,6 +58,9 @@ fun Registration(
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var registrationState by remember { mutableStateOf<RegistrationState>(RegistrationState.Idle) }
+    var phoneError by remember { mutableStateOf<String?>(null) }
+    val phoneRegex = remember { Regex("^\\+?7\\d{10}$") }
+    val invalidPhoneMessage = "Введите номер в формате +7XXXXXXXXXX"
     val context = LocalContext.current
 
     LaunchedEffect(registrationState) {
@@ -82,6 +85,11 @@ fun Registration(
                     is NetworkResult.NetworkError -> RegistrationState.Error("Проблемы с сетью")
                     is NetworkResult.SerializationError -> RegistrationState.Error("Ошибка обработки ответа")
                     else -> RegistrationState.Error("Не удалось зарегистрироваться")
+                }
+            }
+            is RegistrationState.Error -> {
+                if (!phoneRegex.matches(phone.trim())) {
+                    phoneError = invalidPhoneMessage
                 }
             }
             else -> Unit
@@ -169,6 +177,7 @@ fun Registration(
                     value = phone,
                     onValueChange = { newPhone ->
                         phone = newPhone
+                        phoneError = null
                         if (registrationState is RegistrationState.Error) {
                             registrationState = RegistrationState.Idle
                         }
@@ -176,8 +185,23 @@ fun Registration(
                     label = { Text("Номер телефона", fontWeight = FontWeight.ExtraBold) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = registrationState is RegistrationState.Error
+                    isError = phoneError != null || registrationState is RegistrationState.Error
                 )
+                if (!phoneError.isNullOrBlank()) {
+                    Text(
+                        text = phoneError.orEmpty(),
+                        color = Color.Red,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Формат: +7XXXXXXXXXX",
+                        color = Color.Gray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
 
                 OutlinedTextField(
                     value = password,
@@ -220,6 +244,13 @@ fun Registration(
 
                 Button(
                     onClick = {
+                        val trimmedPhone = phone.trim()
+                        if (!phoneRegex.matches(trimmedPhone)) {
+                            phoneError = invalidPhoneMessage
+                            registrationState = RegistrationState.Idle
+                            return@Button
+                        }
+                        phoneError = null
                         registrationState = RegistrationState.Loading
                     },
                     modifier = Modifier.fillMaxWidth(),
