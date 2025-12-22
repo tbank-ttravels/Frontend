@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -36,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -106,15 +108,16 @@ fun Profile(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(650.dp)
-                .align(Alignment.Center)
-                .padding(top = 70.dp, start = 20.dp, end = 20.dp, bottom = 20.dp)
+                .height(660.dp)
+                .align(Alignment.TopCenter)
+                .padding(top = 50.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
                 .shadow(
-                    elevation = 12.dp,
-                    shape = RoundedCornerShape(24.dp),
-                    spotColor = Color(0x40FFDD2D)
+                    elevation = 16.dp,
+                    shape = RoundedCornerShape(28.dp),
+                    spotColor = Color(0x40FFDD2D),
+                    clip = true
                 ),
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(
                 containerColor = Color.White
             )
@@ -125,201 +128,120 @@ fun Profile(
                     .padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Person,
-                        contentDescription = "Профиль",
-                        tint = Color(0xFFFFDD2D),
-                        modifier = Modifier.size(28.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color(0xFFFFDD2D),
+                                        Color(0xFFFFC107)
+                                    )
+                                )
+                            )
+                            .padding(3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Person,
+                            contentDescription = "Профиль",
+                            tint = Color.White,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
                         text = displayName(userData),
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
-                        modifier = Modifier.weight(1f)
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                }
-                if (!errorMessage.isNullOrBlank()) {
+
                     Text(
-                        text = errorMessage ?: "",
-                        color = Color.Red,
-                        fontSize = 14.sp
+                        text = userData.phone,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF666666),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier.padding(top = 4.dp)
+                            .padding(horizontal = 8.dp)
+                    )
+
+                    Text(
+                        text = "Путешественник",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFFFDD2D),
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .background(
+                                color = Color(0xFFFFDD2D).copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
                     )
                 }
+
                 if (isLoading) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Phone,
-                        contentDescription = "Телефон",
-                        tint = Color(0xFFFFDD2D),
-                        modifier = Modifier.size(24.dp)
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp),
+                        color = Color(0xFFFFDD2D),
+                        trackColor = Color(0xFFF5F5F5)
                     )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                }
+
+                if (!errorMessage.isNullOrBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
                         Text(
-                            text = "Номер телефона",
+                            text = errorMessage ?: "",
+                            color = Color(0xFFD32F2F),
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF666666)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = userData.phone ,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF333333)
+                            modifier = Modifier.padding(10.dp)
                         )
                     }
                 }
 
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    thickness = 1.dp,
-                    color = Color(0xFFEEEEEE)
-                )
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
                     text = "Управление профилем",
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF333333),
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    color = Color(0xFF333333)
                 )
-                Button(
-                    onClick = {
-                        navController.navigate("main") {
-                            popUpTo("profile") { inclusive = true }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFDD2D),
-                        contentColor = Color(0xFF333333)
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 4.dp,
-                        pressedElevation = 2.dp
-                    )
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.TravelExplore,
-                            contentDescription = "Путешествия",
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Мои путешествия",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Start
-                        )
-                    }
-                }
-                Button(
-                    onClick = {
-                        navController.navigate("edit_profile")
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF333333)
-                    ),
-                    border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
-                        width = 1.dp
-                    )
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Edit,
-                            contentDescription = "Редактировать",
-                            tint = Color(0xFF666666),
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Редактировать профиль",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 16.sp,
-                            color = Color(0xFF333333),
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Start
-                        )
-                    }
-                }
-                if (userData.isLoggedIn) {
                     Button(
                         onClick = {
-                            scope.launch {
-                                val refresh = backend.tokensStore?.currentTokens()?.refreshToken
-                                if (!refresh.isNullOrBlank()) {
-                                    backend.logout(LogoutRequest(refresh))
-                                }
-                                userViewModel.logout()
-                                navController.navigate("auth") {
-                                    popUpTo(0) { inclusive = true }
-                                }
+                            navController.navigate("main") {
+                                popUpTo("profile") { inclusive = true }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFFF0E0),
-                            contentColor = Color(0xFFD32F2F)
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 0.dp
-                        )
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Выйти",
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Выйти из аккаунта",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 16.sp,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Start
-                            )
-                        }
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            navController.navigate("auth")
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -338,23 +260,187 @@ fun Profile(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Person,
-                                contentDescription = "Войти",
-                                modifier = Modifier.size(22.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.TravelExplore,
+                                    contentDescription = "Путешествия",
+                                    tint = Color(0xFFFFDD2D),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Войти или зарегистрироваться",
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 16.sp,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Start
+                            Column(
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = "Мои путешествия",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            navController.navigate("edit_profile")
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF333333)
+                        ),
+                        border = ButtonDefaults.outlinedButtonBorder.copy(
+                            width = 1.dp,
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF5F5F5)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Edit,
+                                    contentDescription = "Редактировать",
+                                    tint = Color(0xFF666666),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = "Редактировать профиль",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
+
+                    if (userData.isLoggedIn) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val refresh = backend.tokensStore?.currentTokens()?.refreshToken
+                                    if (!refresh.isNullOrBlank()) {
+                                        backend.logout(LogoutRequest(refresh))
+                                    }
+                                    userViewModel.logout()
+                                    navController.navigate("auth") {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFF0E0),
+                                contentColor = Color(0xFFD32F2F)
                             )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFFEBEE)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                        contentDescription = "Выйти",
+                                        tint = Color(0xFFD32F2F),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(
+                                        text = "Выйти из аккаунта",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                navController.navigate("auth")
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFDD2D),
+                                contentColor = Color(0xFF333333)
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(
+                                defaultElevation = 4.dp,
+                                pressedElevation = 2.dp
+                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.White),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Person,
+                                        contentDescription = "Войти",
+                                        tint = Color(0xFFFFDD2D),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(
+                                        text = "Войти или зарегистрироваться",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
