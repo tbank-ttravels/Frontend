@@ -1,4 +1,5 @@
 package com.example.myapplication
+
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import androidx.compose.foundation.background
@@ -22,8 +23,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +36,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,7 +58,7 @@ import java.util.TimeZone
 fun Create_trip(
     navController: NavController,
     tripViewModel: TripViewModel = viewModel()
-)  {
+) {
     val context = LocalContext.current
     val displayFormatter = remember { SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()) }
     val isoFormatter = remember {
@@ -62,6 +66,8 @@ fun Create_trip(
             timeZone = TimeZone.getDefault()
         }
     }
+    val russianLocale = Locale("ru", "RU")
+
     var travelName by remember { mutableStateOf("") }
     var travelDescription by remember { mutableStateOf("") }
     var startDateMillis by remember { mutableStateOf<Long?>(null) }
@@ -75,15 +81,17 @@ fun Create_trip(
         millis?.let { displayFormatter.format(Date(it)) } ?: ""
 
     fun openDateTimePicker(currentMillis: Long?, onPicked: (Long) -> Unit) {
-        val cal = Calendar.getInstance().apply {
+        val cal = Calendar.getInstance(russianLocale).apply {
             timeInMillis = currentMillis ?: System.currentTimeMillis()
         }
+
         DatePickerDialog(
             context,
             { _, year, month, dayOfMonth ->
                 cal.set(Calendar.YEAR, year)
                 cal.set(Calendar.MONTH, month)
                 cal.set(Calendar.DAY_OF_MONTH, dayOfMonth)
+
                 TimePickerDialog(
                     context,
                     { _, hour, minute ->
@@ -101,8 +109,31 @@ fun Create_trip(
             cal.get(Calendar.YEAR),
             cal.get(Calendar.MONTH),
             cal.get(Calendar.DAY_OF_MONTH)
-        ).show()
+        ).apply {
+            setButton(DatePickerDialog.BUTTON_POSITIVE, "ОК", this)
+            setButton(DatePickerDialog.BUTTON_NEGATIVE, "Отмена", this)
+        }.show()
     }
+    val commonTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color(0xFF333333),
+        unfocusedTextColor = Color(0xFF333333),
+        focusedBorderColor = Color(0xFFFFDD2D),
+        unfocusedBorderColor = Color.Gray,
+        focusedLabelColor = Color(0xFFFFDD2D),
+        unfocusedLabelColor = Color(0xFF666666),
+        cursorColor = Color(0xFFFFDD2D),
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent
+    )
+
+    val dateFieldColors = OutlinedTextFieldDefaults.colors(
+        disabledTextColor = Color(0xFF333333),
+        disabledBorderColor = Color.Gray,
+        disabledLabelColor = Color(0xFF666666),
+        disabledContainerColor = Color.Transparent,
+        disabledTrailingIconColor = Color(0xFF333333),
+        disabledPlaceholderColor = Color(0xFF999999)
+    )
 
     Box(
         modifier = Modifier
@@ -117,7 +148,6 @@ fun Create_trip(
                 )
             )
     ) {
-
         Text(
             text = "Путешествуй вместе с нами!",
             fontSize = 28.sp,
@@ -126,19 +156,14 @@ fun Create_trip(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 140.dp)
-
-
         )
-
-
-
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(max = 700.dp)
                 .align(Alignment.BottomCenter)
-                .padding( 30.dp)
+                .padding(30.dp)
                 .border(
                     width = 2.dp,
                     color = Color.Gray,
@@ -159,49 +184,74 @@ fun Create_trip(
                     .padding(32.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-
                 OutlinedTextField(
                     value = travelName,
                     onValueChange = { travelName = it },
-                    label = { Text("Название поездки", fontWeight = FontWeight.ExtraBold) },
+                    label = {
+                        Text(
+                            "Название поездки",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = commonTextFieldColors,
+                    singleLine = true
                 )
-
                 OutlinedTextField(
                     value = travelDescription,
                     onValueChange = { travelDescription = it },
-                    label = { Text("Описание (необязательно)", fontWeight = FontWeight.ExtraBold) },
+                    label = {
+                        Text(
+                            "Описание (необязательно)",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 16.sp
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = commonTextFieldColors,
+                    maxLines = 3
                 )
-
-                val dateFieldColors = TextFieldDefaults.colors(
-                    disabledTextColor = Color(0xFF333333),
-                    disabledIndicatorColor = Color.Gray,
-                    disabledLabelColor = Color(0xFF666666),
-                    disabledPlaceholderColor = Color(0xFF999999),
-                    disabledTrailingIconColor = Color(0xFF333333),
-                    disabledContainerColor = Color.Transparent
-                )
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { openDateTimePicker(startDateMillis) { startDateMillis = it } }
+                        .clickable {
+                            openDateTimePicker(startDateMillis) { startDateMillis = it }
+                        }
                 ) {
                     OutlinedTextField(
-                        value = formatForDisplay(startDateMillis).ifBlank { "Выберите дату и время начала" },
+                        value = if (startDateMillis != null) {
+                            formatForDisplay(startDateMillis)
+                        } else {
+                            ""
+                        },
                         onValueChange = {},
                         readOnly = true,
                         enabled = false,
-                        label = { Text("Дата начала", fontWeight = FontWeight.ExtraBold) },
+                        placeholder = {
+                            Text(
+                                "Выберите дату начала",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF999999)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "Выберите дату начала",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.CalendarToday,
-                                contentDescription = "Выбрать дату начала"
+                                contentDescription = "Выбрать дату начала",
+                                tint = if (startDateMillis != null) Color(0xFF333333) else Color(0xFF999999)
                             )
                         },
                         colors = dateFieldColors
@@ -210,27 +260,46 @@ fun Create_trip(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { openDateTimePicker(endDateMillis) { endDateMillis = it } }
+                        .clickable {
+                            openDateTimePicker(endDateMillis) { endDateMillis = it }
+                        }
                 ) {
                     OutlinedTextField(
-                        value = formatForDisplay(endDateMillis).ifBlank { "Выберите дату и время конца" },
+                        value = if (endDateMillis != null) {
+                            formatForDisplay(endDateMillis)
+                        } else {
+                            ""
+                        },
                         onValueChange = {},
                         readOnly = true,
                         enabled = false,
-                        label = { Text("Дата конца", fontWeight = FontWeight.ExtraBold) },
+                        placeholder = {
+                            Text(
+                                "Выберите дату конца",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp,
+                                color = Color(0xFF999999)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "Выберите дату конца",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 16.sp
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.CalendarToday,
-                                contentDescription = "Выбрать дату конца"
+                                contentDescription = "Выбрать дату конца",
+                                tint = if (endDateMillis != null) Color(0xFF333333) else Color(0xFF999999)
                             )
                         },
                         colors = dateFieldColors
                     )
                 }
-
-
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -238,7 +307,8 @@ fun Create_trip(
                     Text(
                         text = errorMessage.orEmpty(),
                         color = Color.Red,
-                        fontSize = 14.sp
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
@@ -296,7 +366,9 @@ fun Create_trip(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFDD2D),
-                        contentColor = Color(0xFF333333)
+                        contentColor = Color(0xFF333333),
+                        disabledContainerColor = Color(0xFFCCCCCC),
+                        disabledContentColor = Color(0xFF666666)
                     ),
                     enabled = !isSubmitting
                 ) {
@@ -307,18 +379,16 @@ fun Create_trip(
                     )
                 }
 
-
-
                 Button(
                     onClick = { navController.navigate("main") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .border(
-                            width = 4.dp,
+                            width = 2.dp,
                             color = Color(0xFFFFDD2D),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(12.dp)
                         ),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFFFFFF),
                         contentColor = Color(0xFF333333)
@@ -326,14 +396,11 @@ fun Create_trip(
                 ) {
                     Text(
                         "Список поездок",
-                        fontWeight = FontWeight.ExtraBold, fontSize = 16.sp
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 16.sp
                     )
                 }
-
-
-
             }
-
         }
     }
 }
