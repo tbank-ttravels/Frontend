@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -241,48 +242,43 @@ fun TripDetailScreen(
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.DateRange,
-                                contentDescription = "Даты",
-                                tint = Color(0xFFFFDD2D),
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val dateText = buildString {
-                                append(trip!!.startDate)
-                                if (!trip!!.endDate.isNullOrBlank()) {
-                                    append(" - ")
-                                    append(trip!!.endDate)
-                                }
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.DateRange,
+                            contentDescription = "Даты",
+                            tint = Color(0xFFFFDD2D),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val dateText = buildString {
+                            append(trip!!.startDate)
+                            if (!trip!!.endDate.isNullOrBlank()) {
+                                append(" - ")
+                                append(trip!!.endDate)
                             }
-                            Text(
-                                text = dateText,
-                                fontSize = 14.sp,
-                                color = Color(0xFF666666),
-                                fontWeight = FontWeight.Medium
-                            )
                         }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        trip!!.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                            Text(
-                                text = desc,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFF666666)
-                            )
-                        }
+                        Text(
+                            text = dateText,
+                            fontSize = 14.sp,
+                            color = Color(0xFF666666),
+                            fontWeight = FontWeight.Medium
+                        )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    trip!!.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                        Text(
+                            text = desc,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF666666)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Box(
                         modifier = Modifier
@@ -291,9 +287,10 @@ fun TripDetailScreen(
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .align(Alignment.Start)
                     ) {
                         Text(
-                            text = "${trip!!.participants.size} участников",
+                            text = "участников: ${trip!!.participants.size}",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF4CAF50)
@@ -302,7 +299,6 @@ fun TripDetailScreen(
                 }
             }
         }
-
         Card(
             modifier = Modifier
                 .weight(1f)
@@ -368,8 +364,8 @@ fun TripDetailScreen(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFF9A9A),
-                        contentColor = Color(0xFFD32F2F)
+                        containerColor = Color(0xFFFF7B7B),
+                        contentColor = Color(0xFF440404)
                     )
                 ) {
                     Icon(
