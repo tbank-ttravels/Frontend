@@ -251,7 +251,8 @@ fun ParticipantsTab(
                                                     name = it.name.orEmpty(),
                                                     surname = it.surname.orEmpty(),
                                                     phone = it.phone.orEmpty(),
-                                                    status = it.status
+                                                    status = it.status,
+                                                    role = it.role
                                                 )
                                             }
                                             tripViewModel.setParticipants(trip.id, members)
@@ -367,7 +368,8 @@ fun ParticipantsTab(
                                                     name = it.name.orEmpty(),
                                                     surname = it.surname.orEmpty(),
                                                     phone = it.phone.orEmpty(),
-                                                    status = it.status
+                                                    status = it.status,
+                                                    role = it.role
                                                 )
                                             }
                                             tripViewModel.setParticipants(trip.id, members)
