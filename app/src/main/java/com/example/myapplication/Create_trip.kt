@@ -232,7 +232,7 @@ fun Create_trip(
                         enabled = false,
                         placeholder = {
                             Text(
-                                "Выберите дату начала",
+                                "Дата начала",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp,
                                 color = Color(0xFF999999)
@@ -240,7 +240,7 @@ fun Create_trip(
                         },
                         label = {
                             Text(
-                                "Выберите дату начала",
+                                "Дата начала",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp
                             )
@@ -250,7 +250,7 @@ fun Create_trip(
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.CalendarToday,
-                                contentDescription = "Выбрать дату начала",
+                                contentDescription = "Дата начала",
                                 tint = if (startDateMillis != null) Color(0xFF333333) else Color(0xFF999999)
                             )
                         },
@@ -275,7 +275,7 @@ fun Create_trip(
                         enabled = false,
                         placeholder = {
                             Text(
-                                "Выберите дату конца",
+                                "Дата окончания",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp,
                                 color = Color(0xFF999999)
@@ -283,7 +283,7 @@ fun Create_trip(
                         },
                         label = {
                             Text(
-                                "Выберите дату конца",
+                                "Дата окончания",
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 16.sp
                             )
@@ -293,7 +293,7 @@ fun Create_trip(
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.CalendarToday,
-                                contentDescription = "Выбрать дату конца",
+                                contentDescription = "Дата окончания",
                                 tint = if (endDateMillis != null) Color(0xFF333333) else Color(0xFF999999)
                             )
                         },
@@ -324,7 +324,7 @@ fun Create_trip(
                                 errorMessage = "Выберите дату и время начала"
                             }
                             endDateMillis != null && startDateMillis != null && endDateMillis!! < startDateMillis!! -> {
-                                errorMessage = "Дата конца должна быть позже даты начала"
+                                errorMessage = "Дата окончания должна быть позже даты начала"
                             }
                             else -> {
                                 isSubmitting = true

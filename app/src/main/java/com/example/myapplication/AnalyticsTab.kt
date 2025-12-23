@@ -215,7 +215,7 @@ fun CategoryAnalyticsCard(
                         color = Color(0xFF333333)
                     )
                     Text(
-                        text = "трат кол-во: ${category.expenseCount}",
+                        text = "Трат: ${category.expenseCount}",
                         fontSize = 12.sp,
                         color = Color(0xFF666666),
                         modifier = Modifier.padding(top = 2.dp)

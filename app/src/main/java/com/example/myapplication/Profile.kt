@@ -186,7 +186,7 @@ fun Profile(
                         text = "Путешественник",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
-                        color = Color(0xFFFFDD2D),
+                        color = Color(0xFFE3BB44),
                         modifier = Modifier
                             .padding(top = 8.dp)
                             .background(

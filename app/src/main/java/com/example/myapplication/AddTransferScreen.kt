@@ -235,7 +235,7 @@ fun AddTransferScreen(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF5F5F5),
+                    containerColor = Color(0xFFFF7B7B),
                     contentColor = Color(0xFF333333)
                 )
             ) {

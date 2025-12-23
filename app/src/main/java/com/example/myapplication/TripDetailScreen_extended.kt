@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -290,7 +291,7 @@ fun TripDetailScreen(
                             .align(Alignment.Start)
                     ) {
                         Text(
-                            text = "участников: ${trip!!.participants.size}",
+                            text = "Участников: ${trip!!.participants.size}",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF4CAF50)
@@ -352,7 +353,7 @@ fun TripDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        if (isClosed) "Недоступно (закрыта)" else "Редактировать",
+                        if (isClosed) "Недоступно" else "Редактировать",
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -365,11 +366,11 @@ fun TripDetailScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFF7B7B),
-                        contentColor = Color(0xFF440404)
+                        contentColor = Color(0xFF333333)
                     )
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Edit,
+                        imageVector = Icons.Filled.Delete,
                         contentDescription = "Удалить",
                         modifier = Modifier.size(18.dp)
                     )

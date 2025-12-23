@@ -1,7 +1,6 @@
 package com.example.myapplication
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -203,61 +202,72 @@ fun TransfersTab(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val tr = editingTransfer ?: return@Button
-                        val transferId = tr.id.toLongOrNull()
-                        val newSum = editAmount.toDoubleOrNull()
-                        if (transferId == null || newSum == null) {
-                            errorMessage = "Некорректная сумма или идентификатор перевода"
-                            return@Button
-                        }
-                        isSavingEdit = true
-                        errorMessage = null
-                        scope.launch {
-                            when (val res = backend.editTransfer(
-                                trip.id.toLong(),
-                                transferId,
-                                EditTransferRequest(sum = newSum)
-                            )) {
-                                is NetworkResult.Success -> {
-                                    val updated = transfers.map { existing ->
-                                        if (existing.id == res.data.id.toString()) {
-                                            existing.copy(
-                                                amount = res.data.sum,
-                                                date = res.data.date.orEmpty()
-                                            )
-                                        } else existing
-                                    }
-                                    transfers = updated
-                                    tripViewModel.setTransfers(trip.id, updated)
-                                    editingTransfer = null
-                                }
-                                is NetworkResult.HttpError -> errorMessage =
-                                    res.error?.message ?: "Ошибка ${res.code}"
-                                is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
-                                is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
-                                else -> errorMessage = "Не удалось обновить перевод"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = { editingTransfer = null },
+                        enabled = !isSavingEdit,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF7B7B),
+                            contentColor = Color(0xFF333333)
+                        )
+                    ) { Text("Отмена") }
+                    Button(
+                        onClick = {
+                            val tr = editingTransfer ?: return@Button
+                            val transferId = tr.id.toLongOrNull()
+                            val newSum = editAmount.toDoubleOrNull()
+                            if (transferId == null || newSum == null) {
+                                errorMessage = "Некорректная сумма или идентификатор перевода"
+                                return@Button
                             }
-                            isSavingEdit = false
-                        }
-                    },
-                    enabled = !isSavingEdit,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = yellow,
-                        contentColor = Color(0xFF333333)
-                    )
-                ) { Text(if (isSavingEdit) "Сохранение..." else "Сохранить") }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { editingTransfer = null },
-                    enabled = !isSavingEdit,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFF333333)
-                    ),
-                    border = BorderStroke(1.dp, yellow)
-                ) { Text("Отмена") }
+                            isSavingEdit = true
+                            errorMessage = null
+                            scope.launch {
+                                when (val res = backend.editTransfer(
+                                    trip.id.toLong(),
+                                    transferId,
+                                    EditTransferRequest(sum = newSum)
+                                )) {
+                                    is NetworkResult.Success -> {
+                                        val updated = transfers.map { existing ->
+                                            if (existing.id == res.data.id.toString()) {
+                                                existing.copy(
+                                                    amount = res.data.sum,
+                                                    date = res.data.date.orEmpty()
+                                                )
+                                            } else existing
+                                        }
+                                        transfers = updated
+                                        tripViewModel.setTransfers(trip.id, updated)
+                                        editingTransfer = null
+                                    }
+                                    is NetworkResult.HttpError -> errorMessage =
+                                        res.error?.message ?: "Ошибка ${res.code}"
+                                    is NetworkResult.NetworkError -> errorMessage = "Проблемы с сетью"
+                                    is NetworkResult.SerializationError -> errorMessage = "Ошибка обработки ответа"
+                                    else -> errorMessage = "Не удалось обновить перевод"
+                                }
+                                isSavingEdit = false
+                            }
+                        },
+                        enabled = !isSavingEdit,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = yellow,
+                            contentColor = Color(0xFF333333)
+                        )
+                    ) { Text(if (isSavingEdit) "Сохранение..." else "Сохранить") }
+                }
             }
         )
     }

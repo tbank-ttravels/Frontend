@@ -69,6 +69,8 @@ fun EditTripScreen(
             timeZone = TimeZone.getDefault()
         }
     }
+
+    val russianLocale = Locale("ru", "RU")
     var startDateMillis by remember { mutableStateOf<Long?>(null) }
     var endDateMillis by remember { mutableStateOf<Long?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -107,7 +109,10 @@ fun EditTripScreen(
             cal.get(Calendar.YEAR),
             cal.get(Calendar.MONTH),
             cal.get(Calendar.DAY_OF_MONTH)
-        ).show()
+        ).apply {
+            setButton(DatePickerDialog.BUTTON_POSITIVE, "ОК", this)
+            setButton(DatePickerDialog.BUTTON_NEGATIVE, "Отмена", this)
+        }.show()
     }
 
     LaunchedEffect(tripId) {
@@ -196,7 +201,7 @@ fun EditTripScreen(
                 OutlinedTextField(
                     value = tripDescription,
                     onValueChange = { tripDescription = it },
-                    label = { Text("Описание", fontWeight = FontWeight.ExtraBold) },
+                    label = { Text("Описание", fontWeight = FontWeight.Normal) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -324,12 +329,12 @@ fun EditTripScreen(
                     )
                 }
                 Button(
-            onClick = { navController.navigateUp() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(
-                    width = 4.dp,
-                    color = Color(0xFFFFDD2D),
+                    onClick = { navController.navigateUp() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 4.dp,
+                            color = Color(0xFFFFDD2D),
                             shape = RoundedCornerShape(16.dp)
                         ),
                     shape = RoundedCornerShape(16.dp),

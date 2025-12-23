@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
@@ -52,12 +53,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -73,6 +78,8 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import com.example.myapplication.TransfersTab
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.rounded.CurrencyRuble
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -91,7 +98,7 @@ fun Add_Finance(
     val context = LocalContext.current
     val backend = remember(context) { BackendProvider.get(context) }
     val scope = rememberCoroutineScope()
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
     val tabs = listOf("Расходы", "Переводы", "Категории")
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<Expense?>(null) }
@@ -246,13 +253,6 @@ fun Add_Finance(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF333333),
                         modifier = Modifier.weight(1f)
-                    )
-
-                    Text(
-                        text = "${totalExpenses.toInt()} ₽",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF333333)
                     )
                 }
 
@@ -908,6 +908,9 @@ fun AddEditExpenseDialog(
 
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
+    var categoryFieldSize by remember { mutableStateOf(IntSize.Zero) }
+    var payerFieldSize by remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -938,7 +941,7 @@ fun AddEditExpenseDialog(
                         unfocusedLabelColor = Color.Gray
                     ),
                     leadingIcon = {
-                        Icon(Icons.Filled.AttachMoney, null, tint = Color(0xFFFFDD2D))
+                        Icon(Icons.Outlined.Description, null, tint = Color(0xFFFFDD2D))
                     }
                 )
 
@@ -949,7 +952,9 @@ fun AddEditExpenseDialog(
                         value = selectedCategory,
                         onValueChange = {},
                         label = { Text("Категория") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onGloballyPositioned { categoryFieldSize = it.size },
                         readOnly = true,
                         enabled = true,
                         shape = RoundedCornerShape(8.dp),
@@ -967,11 +972,19 @@ fun AddEditExpenseDialog(
                             )
                         },
                         trailingIcon = {
-                            if (categories.isEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (categories.isEmpty()) {
+                                    Icon(
+                                        Icons.Filled.Warning,
+                                        "Нет категорий",
+                                        tint = Color(0xFFFF9800)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                }
                                 Icon(
-                                    Icons.Filled.Warning,
-                                    "Нет категорий",
-                                    tint = Color(0xFFFF9800)
+                                    imageVector = Icons.Filled.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFF757575)
                                 )
                             }
                         }
@@ -989,7 +1002,7 @@ fun AddEditExpenseDialog(
                     DropdownMenu(
                         expanded = showCategoryDropdown,
                         onDismissRequest = { showCategoryDropdown = false },
-                        modifier = Modifier.fillMaxWidth(0.9f)
+                        modifier = Modifier.width(with(density) { categoryFieldSize.width.toDp() })
                     ) {
                         if (categories.isEmpty()) {
                             DropdownMenuItem(
@@ -1121,7 +1134,7 @@ fun AddEditExpenseDialog(
                                                     sharesByParticipantId = sharesByParticipantId + (participant.id to v)
                                                 }
                                             },
-                                            label = { Text("Сумма для участника (₽)") },
+                                            label = { Text("Сумма участника") },
                                             singleLine = true,
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(8.dp),
@@ -1132,7 +1145,11 @@ fun AddEditExpenseDialog(
                                                 unfocusedLabelColor = Color.Gray
                                             ),
                                             leadingIcon = {
-                                                Icon(Icons.Filled.AttachMoney, null, tint = Color(0xFFFFDD2D))
+                                                Icon(
+                                                    Icons.Rounded.CurrencyRuble,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFFFDD2D)
+                                                )
                                             }
                                         )
                                     }
@@ -1153,7 +1170,9 @@ fun AddEditExpenseDialog(
                             value = selectedPayerName,
                             onValueChange = {},
                             label = { Text("Кто оплатил") },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { payerFieldSize = it.size },
                             readOnly = true,
                             enabled = true,
                             shape = RoundedCornerShape(8.dp),
@@ -1165,6 +1184,13 @@ fun AddEditExpenseDialog(
                             ),
                             leadingIcon = {
                                 Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3))
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.ArrowDropDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFF757575)
+                                )
                             }
                         )
                         Box(
@@ -1176,7 +1202,7 @@ fun AddEditExpenseDialog(
                         DropdownMenu(
                             expanded = showPayerDropdown,
                             onDismissRequest = { showPayerDropdown = false },
-                            modifier = Modifier.fillMaxWidth(0.9f)
+                            modifier = Modifier.width(with(density) { payerFieldSize.width.toDp() })
                         ) {
                             acceptedParticipants.forEach { user ->
                                 val payerName = displayName(user)
@@ -1217,70 +1243,81 @@ fun AddEditExpenseDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    val amountValue = selectedParticipantIds.sumOf { id ->
-                        sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0
-                    }
-                    val shares = selectedParticipantIds
-                        .associateWith { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
-                        .filterValues { it >= 0.0 }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF7B7B),
+                        contentColor = Color(0xFF333333)
+                    )
+                ) {
+                    Text("Отмена")
+                }
+                Button(
+                    onClick = {
+                        val amountValue = selectedParticipantIds.sumOf { id ->
+                            sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0
+                        }
+                        val shares = selectedParticipantIds
+                            .associateWith { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
+                            .filterValues { it >= 0.0 }
 
-                    val paidForText = if (selectedParticipantIds == setOf(selectedPayerId)) {
-                        "Только себя"
-                    } else {
-                        val otherIds = selectedParticipantIds - selectedPayerId
-                        val names = acceptedParticipants
-                            .filter { it.id in otherIds }
-                            .map { u ->
-                                listOf(u.name, u.surname).filter { it.isNotBlank() }.joinToString(" ").ifBlank { u.name }
-                            }
-                        if (names.isNotEmpty()) "За: ${names.joinToString(", ")}" else "За участников"
-                    }
+                        val paidForText = if (selectedParticipantIds == setOf(selectedPayerId)) {
+                            "Только себя"
+                        } else {
+                            val otherIds = selectedParticipantIds - selectedPayerId
+                            val names = acceptedParticipants
+                                .filter { it.id in otherIds }
+                                .map { u ->
+                                    listOf(u.name, u.surname).filter { it.isNotBlank() }.joinToString(" ").ifBlank { u.name }
+                                }
+                            if (names.isNotEmpty()) "За: ${names.joinToString(", ")}" else "За участников"
+                        }
 
-                    val newExpense = Expense(
-                        id = expense?.id ?: UUID.randomUUID().toString(),
-                        title = title.trim(),
-                        amount = amountValue,
-                        category = selectedCategory,
-                        payerId = selectedPayerId,
-                        paidFor = paidForText,
-                        date = expense?.date ?: Expense(
+                        val newExpense = Expense(
+                            id = expense?.id ?: UUID.randomUUID().toString(),
                             title = title.trim(),
                             amount = amountValue,
                             category = selectedCategory,
-                            payerId = selectedPayerId
-                        ).date,
-                        participantShares = shares
+                            payerId = selectedPayerId,
+                            paidFor = paidForText,
+                            date = expense?.date ?: Expense(
+                                title = title.trim(),
+                                amount = amountValue,
+                                category = selectedCategory,
+                                payerId = selectedPayerId
+                            ).date,
+                            participantShares = shares
+                        )
+                        onSave(newExpense)
+                    },
+                    enabled = run {
+                        if (title.isBlank() || selectedPayerId.isBlank() || selectedCategory.isBlank()) return@run false
+                        if (selectedParticipantIds.isEmpty() || !selectedParticipantIds.contains(selectedPayerId)) return@run false
+                        val allValid = selectedParticipantIds.all { id ->
+                            sharesByParticipantId[id]?.toDoubleOrNull() != null
+                        }
+                        val sum = selectedParticipantIds.sumOf { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
+                        allValid && sum >= 0.0
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFDD2D),
+                        contentColor = Color(0xFF333333)
                     )
-                    onSave(newExpense)
-                },
-                enabled = run {
-                    if (title.isBlank() || selectedPayerId.isBlank() || selectedCategory.isBlank()) return@run false
-                    if (selectedParticipantIds.isEmpty() || !selectedParticipantIds.contains(selectedPayerId)) return@run false
-                    val allValid = selectedParticipantIds.all { id ->
-                        sharesByParticipantId[id]?.toDoubleOrNull() != null
-                    }
-                    val sum = selectedParticipantIds.sumOf { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
-                    allValid && sum >= 0.0
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFFDD2D),
-                    contentColor = Color(0xFF333333)
-                )
-            ) {
-                Text("Сохранить")
-            }
-        },
-        dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF5F5F5),
-                    contentColor = Color(0xFF666666)
-                )
-            ) {
-                Text("Отмена")
+                ) {
+                    Text("Сохранить")
+                }
             }
         }
     )
@@ -1424,7 +1461,7 @@ fun CategoryItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
-
+            /*
             IconButton(
                 onClick = { showDeleteDialog = true },
                 modifier = Modifier.size(32.dp)
@@ -1436,6 +1473,7 @@ fun CategoryItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
+             */
         }
     }
 
@@ -1447,27 +1485,39 @@ fun CategoryItem(
                 Text("Вы уверены, что хотите удалить категорию \"${category.name}\"? Все расходы в этой категории станут без категории.")
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        onDelete()
-                        showDeleteDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF44336)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Удалить")
-                }
-            },
-            dismissButton = {
-                Button(
-                    onClick = { showDeleteDialog = false },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFF5F5F5),
-                        contentColor = Color(0xFF666666)
-                    )
-                ) {
-                    Text("Отмена")
+                    Button(
+                        onClick = { showDeleteDialog = false },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF5F5F5),
+                            contentColor = Color(0xFF333333)
+                        )
+                    ) {
+                        Text("Отмена")
+                    }
+                    Button(
+                        onClick = {
+                            onDelete()
+                            showDeleteDialog = false
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF44336),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("Удалить")
+                    }
                 }
             }
         )
@@ -1508,32 +1558,43 @@ fun AddCategoryDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (categoryName.isNotBlank()) {
-                        val payload = editingCategory?.copy(name = categoryName)
-                            ?: ExpenseCategory(name = categoryName)
-                        onAddCategory(payload)
-                    }
-                },
-                enabled = categoryName.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFFFDD2D),
-                    contentColor = Color(0xFF333333)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(if (isEditing) "Обновить" else "Сохранить")
-            }
-        },
-        dismissButton = {
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFF5F5F5),
-                    contentColor = Color(0xFF666666)
-                )
-            ) {
-                Text("Отмена")
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF7B7B),
+                        contentColor = Color(0xFF333333)
+                    )
+                ) {
+                    Text("Отмена")
+                }
+                Button(
+                    onClick = {
+                        if (categoryName.isNotBlank()) {
+                            val payload = editingCategory?.copy(name = categoryName)
+                                ?: ExpenseCategory(name = categoryName)
+                            onAddCategory(payload)
+                        }
+                    },
+                    enabled = categoryName.isNotBlank(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFDD2D),
+                        contentColor = Color(0xFF333333)
+                    )
+                ) {
+                    Text(if (isEditing) "Обновить" else "Сохранить")
+                }
             }
         }
     )
