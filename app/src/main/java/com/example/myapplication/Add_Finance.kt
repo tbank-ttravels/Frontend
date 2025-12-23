@@ -75,6 +75,7 @@ import com.example.myapplication.TransfersTab
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 
 data class ExpenseCategory(
     val id: String = UUID.randomUUID().toString(),
@@ -866,18 +867,16 @@ fun AddEditExpenseDialog(
         mutableStateOf(expense?.category ?: categories.firstOrNull()?.name ?: "")
     }
     val scrollState = rememberScrollState()
-    // Фильтруем только участников со статусом ACCEPTED
     val acceptedParticipants = remember(trip.participants) {
         trip.participants.filter { it.status?.equals("ACCEPTED", ignoreCase = true) == true }
     }
-    
+
     var selectedPayerId by remember {
         mutableStateOf(
             expense?.payerId ?: acceptedParticipants.firstOrNull()?.id ?: ""
         )
     }
 
-    // Выбранные участники и их суммы (сколько плательщик потратил за каждого)
     var selectedParticipantIds by remember {
         mutableStateOf<Set<String>>(
             when {
@@ -898,7 +897,6 @@ fun AddEditExpenseDialog(
         )
     }
 
-    // Плательщик обязателен среди участников
     LaunchedEffect(selectedPayerId) {
         if (selectedPayerId.isNotBlank() && !selectedParticipantIds.contains(selectedPayerId)) {
             selectedParticipantIds = selectedParticipantIds + selectedPayerId
@@ -907,7 +905,7 @@ fun AddEditExpenseDialog(
             sharesByParticipantId = sharesByParticipantId + (selectedPayerId to "0")
         }
     }
-    
+
     var showCategoryDropdown by remember { mutableStateOf(false) }
     var showPayerDropdown by remember { mutableStateOf(false) }
 
@@ -932,6 +930,13 @@ fun AddEditExpenseDialog(
                     onValueChange = { title = it },
                     label = { Text("Название расхода") },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFFDD2D),
+                        unfocusedBorderColor = Color.Gray,
+                        focusedLabelColor = Color.Black,
+                        unfocusedLabelColor = Color.Gray
+                    ),
                     leadingIcon = {
                         Icon(Icons.Filled.AttachMoney, null, tint = Color(0xFFFFDD2D))
                     }
@@ -947,6 +952,13 @@ fun AddEditExpenseDialog(
                         modifier = Modifier.fillMaxWidth(),
                         readOnly = true,
                         enabled = true,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFFDD2D),
+                            unfocusedBorderColor = Color.Gray,
+                            focusedLabelColor = Color.Black,
+                            unfocusedLabelColor = Color.Gray
+                        ),
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Filled.Category,
@@ -964,7 +976,6 @@ fun AddEditExpenseDialog(
                             }
                         }
                     )
-                    // Кликабельный слой на весь бокс (Что бы открывался по клику на всей области, а не ток на надпись)
                     Box(
                         modifier = Modifier
                             .matchParentSize()
@@ -1014,7 +1025,6 @@ fun AddEditExpenseDialog(
                     }
                 }
 
-                // Выбор участников с галочками
                 Text(
                     text = "За кого оплачено",
                     fontSize = 14.sp,
@@ -1022,11 +1032,11 @@ fun AddEditExpenseDialog(
                     color = Color(0xFF666666),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 200.dp),
+                        .heightIn(max = 300.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color(0xFFF5F5F5)
@@ -1043,62 +1053,67 @@ fun AddEditExpenseDialog(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 200.dp),
+                                .heightIn(max = 300.dp),
                             contentPadding = PaddingValues(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(acceptedParticipants.size) { index ->
                                 val participant = acceptedParticipants[index]
                                 val participantName = displayName(participant)
                                 val isPayer = participant.id == selectedPayerId
-                                Row(
+
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
-                                            if (isPayer) return@clickable
-                                            val isSelected = selectedParticipantIds.contains(participant.id)
-                                            if (isSelected) {
-                                                selectedParticipantIds = selectedParticipantIds - participant.id
-                                                sharesByParticipantId = sharesByParticipantId - participant.id
-                                            } else {
-                                                selectedParticipantIds = selectedParticipantIds + participant.id
-                                                if (!sharesByParticipantId.containsKey(participant.id)) {
-                                                    sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
-                                                }
-                                            }
-                                        }
-                                        .padding(vertical = 4.dp, horizontal = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(vertical = 4.dp)
                                 ) {
-                                    Checkbox(
-                                        checked = selectedParticipantIds.contains(participant.id),
-                                        onCheckedChange = {
-                                            if (isPayer) return@Checkbox
-                                            if (it) {
-                                                selectedParticipantIds = selectedParticipantIds + participant.id
-                                                if (!sharesByParticipantId.containsKey(participant.id)) {
-                                                    sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                if (isPayer) return@clickable
+                                                val isSelected = selectedParticipantIds.contains(participant.id)
+                                                if (isSelected) {
+                                                    selectedParticipantIds = selectedParticipantIds - participant.id
+                                                    sharesByParticipantId = sharesByParticipantId - participant.id
+                                                } else {
+                                                    selectedParticipantIds = selectedParticipantIds + participant.id
+                                                    if (!sharesByParticipantId.containsKey(participant.id)) {
+                                                        sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
+                                                    }
                                                 }
-                                            } else {
-                                                selectedParticipantIds = selectedParticipantIds - participant.id
-                                                sharesByParticipantId = sharesByParticipantId - participant.id
-                                            }
-                                        },
-                                        enabled = !isPayer,
-                                        colors = CheckboxDefaults.colors(
-                                            checkedColor = Color(0xFFFFDD2D)
+                                            },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(
+                                            checked = selectedParticipantIds.contains(participant.id),
+                                            onCheckedChange = {
+                                                if (isPayer) return@Checkbox
+                                                if (it) {
+                                                    selectedParticipantIds = selectedParticipantIds + participant.id
+                                                    if (!sharesByParticipantId.containsKey(participant.id)) {
+                                                        sharesByParticipantId = sharesByParticipantId + (participant.id to "0")
+                                                    }
+                                                } else {
+                                                    selectedParticipantIds = selectedParticipantIds - participant.id
+                                                    sharesByParticipantId = sharesByParticipantId - participant.id
+                                                }
+                                            },
+                                            enabled = !isPayer,
+                                            colors = CheckboxDefaults.colors(
+                                                checkedColor = Color(0xFFFFDD2D)
+                                            )
                                         )
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = if (isPayer) "$participantName (плательщик)" else participantName,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF333333)
-                                    )
-
-                                    Spacer(modifier = Modifier.weight(1f))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (isPayer) "$participantName (плательщик)" else participantName,
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF333333)
+                                        )
+                                    }
 
                                     if (selectedParticipantIds.contains(participant.id)) {
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         OutlinedTextField(
                                             value = sharesByParticipantId[participant.id].orEmpty(),
                                             onValueChange = { v ->
@@ -1106,9 +1121,19 @@ fun AddEditExpenseDialog(
                                                     sharesByParticipantId = sharesByParticipantId + (participant.id to v)
                                                 }
                                             },
-                                            label = { Text("₽") },
+                                            label = { Text("Сумма для участника (₽)") },
                                             singleLine = true,
-                                            modifier = Modifier.width(110.dp)
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Color(0xFFFFDD2D),
+                                                unfocusedBorderColor = Color.Gray,
+                                                focusedLabelColor = Color.Black,
+                                                unfocusedLabelColor = Color.Gray
+                                            ),
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.AttachMoney, null, tint = Color(0xFFFFDD2D))
+                                            }
                                         )
                                     }
                                 }
@@ -1131,11 +1156,17 @@ fun AddEditExpenseDialog(
                             modifier = Modifier.fillMaxWidth(),
                             readOnly = true,
                             enabled = true,
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFFFFDD2D),
+                                unfocusedBorderColor = Color.Gray,
+                                focusedLabelColor = Color.Black,
+                                unfocusedLabelColor = Color.Gray
+                            ),
                             leadingIcon = {
                                 Icon(Icons.Filled.Person, null, tint = Color(0xFF2196F3))
                             }
                         )
-                        // Кликабельный слой на весь бокс (Что бы открывался по клику на всей области, а не ток на надпись)
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
@@ -1193,10 +1224,8 @@ fun AddEditExpenseDialog(
                     }
                     val shares = selectedParticipantIds
                         .associateWith { id -> sharesByParticipantId[id]?.toDoubleOrNull() ?: 0.0 }
-                        // 0 тоже допустим
                         .filterValues { it >= 0.0 }
 
-                    // paidFor для отображения (в запрос уходит participantShares)
                     val paidForText = if (selectedParticipantIds == setOf(selectedPayerId)) {
                         "Только себя"
                     } else {
@@ -1229,7 +1258,6 @@ fun AddEditExpenseDialog(
                 enabled = run {
                     if (title.isBlank() || selectedPayerId.isBlank() || selectedCategory.isBlank()) return@run false
                     if (selectedParticipantIds.isEmpty() || !selectedParticipantIds.contains(selectedPayerId)) return@run false
-                    // Требуем, чтобы пользователь ввёл число (включая 0) для каждого выбранного участника
                     val allValid = selectedParticipantIds.all { id ->
                         sharesByParticipantId[id]?.toDoubleOrNull() != null
                     }
